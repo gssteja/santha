@@ -1,0 +1,21 @@
+# deps
+node_modules/
+apps/kasrat/node_modules/
+
+# build output
+apps/kasrat/android/
+apps/kasrat/.expo/
+apps/kasrat/dist/
+
+# env / secrets
+.env
+.env.local
+*.env.local
+apps/kasrat/.env
+
+# OS
+.DS_Store
+*.log
+
+# expo
+apps/kasrat/.expo-shared/

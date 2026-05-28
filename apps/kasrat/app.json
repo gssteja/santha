@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "Kasrat",
+    "slug": "kasrat",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "kasrat",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0d0d10"
+    },
+    "android": {
+      "package": "com.santha.kasrat",
+      "adaptiveIcon": {
+        "backgroundColor": "#0d0d10"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

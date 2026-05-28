@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Santha</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f13;
+      color: #e8e8f0;
+      min-height: 100vh;
+    }
+    header {
+      padding: 24px 20px 16px;
+      border-bottom: 1px solid #1e1e2a;
+    }
+    header h1 {
+      font-size: 28px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #fff;
+    }
+    header p {
+      font-size: 13px;
+      color: #666;
+      margin-top: 4px;
+    }
+    #apps-grid {
+      padding: 20px;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 16px;
+    }
+    .app-card {
+      background: #16161f;
+      border: 1px solid #1e1e2a;
+      border-radius: 16px;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      transition: border-color 0.15s, transform 0.1s;
+      text-decoration: none;
+      color: inherit;
+    }
+    .app-card:active { transform: scale(0.97); }
+    .app-card:hover { border-color: #4a4a6a; }
+    .app-icon {
+      width: 56px;
+      height: 56px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+    .app-name {
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      color: #e8e8f0;
+    }
+    .app-desc {
+      font-size: 11px;
+      color: #666;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .install-btn {
+      margin-top: 4px;
+      background: #4f46e5;
+      color: #fff;
+      border: none;
+      border-radius: 20px;
+      padding: 6px 16px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      width: 100%;
+    }
+    .install-btn:active { background: #4338ca; }
+    .empty {
+      grid-column: 1/-1;
+      text-align: center;
+      padding: 60px 20px;
+      color: #444;
+    }
+    .empty p { font-size: 14px; }
+    .loading { color: #444; text-align: center; padding: 60px; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Santha</h1>
+    <p>Your personal app store</p>
+  </header>
+  <div id="apps-grid">
+    <div class="loading">Loading...</div>
+  </div>
+
+  <script>
+    const ICONS = {
+      workout: { emoji: '💪', bg: '#1a1a3a' },
+      habit: { emoji: '✅', bg: '#0f2a1a' },
+      timer: { emoji: '⏱️', bg: '#2a1a0f' },
+      note: { emoji: '📝', bg: '#1a2a0f' },
+      default: { emoji: '📱', bg: '#1e1e2a' }
+    };
+
+    function getIcon(id, meta) {
+      const key = Object.keys(ICONS).find(k => id.includes(k) || (meta.category || '').includes(k)) || 'default';
+      return ICONS[key];
+    }
+
+    async function loadApps() {
+      const grid = document.getElementById('apps-grid');
+      try {
+        const res = await fetch('/api/apps');
+        const apps = await res.json();
+        if (!apps.length) {
+          grid.innerHTML = '<div class="empty"><p>No apps yet.<br>Ask Claude to build one.</p></div>';
+          return;
+        }
+        grid.innerHTML = apps.map(app => {
+          const icon = getIcon(app.id, app);
+          return `
+            <div class="app-card" onclick="openApp('${app.url}')">
+              <div class="app-icon" style="background:${icon.bg}">${app.icon || icon.emoji}</div>
+              <div class="app-name">${app.name || app.id}</div>
+              <div class="app-desc">${app.description || ''}</div>
+              <button class="install-btn" onclick="event.stopPropagation();openApp('${app.url}')">Open</button>
+            </div>`;
+        }).join('');
+      } catch (e) {
+        grid.innerHTML = '<div class="empty"><p>Failed to load apps.</p></div>';
+      }
+    }
+
+    function openApp(url) {
+      window.location.href = url;
+    }
+
+    loadApps();
+  </script>
+</body>
+</html>
