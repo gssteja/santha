@@ -92,6 +92,9 @@ export default function ProgramsScreen() {
                                 {ex.muscle && (
                                   <Text style={styles.exMuscle}>{ex.muscle}</Text>
                                 )}
+                                {ex.note && (
+                                  <Text style={styles.exNote}>{ex.note}</Text>
+                                )}
                               </View>
                               <Text style={styles.exSetsReps}>
                                 {ex.sets}×{ex.reps}
@@ -186,6 +189,7 @@ const styles = StyleSheet.create({
   exLeft: { flex: 1 },
   exName: { color: C.text2, fontSize: F.xs, fontWeight: '600' },
   exMuscle: { color: C.accent, fontSize: F.xs - 1, marginTop: 1 },
+  exNote: { color: C.text3, fontSize: F.xs - 1, lineHeight: 16, marginTop: 4, fontStyle: 'italic', paddingRight: 8 },
   exSetsReps: { color: C.text3, fontSize: F.xs, fontVariant: ['tabular-nums'] },
   startBtn: {
     margin: 12,
