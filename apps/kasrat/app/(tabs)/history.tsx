@@ -30,7 +30,7 @@ export default function HistoryScreen() {
       </View>
 
       {history.length === 0 ? (
-        <Text style={styles.empty}>Emee ledu.{'\n'}Repu nunchi ani andaru antaaru.</Text>
+        <Text style={styles.empty}>No workouts yet.</Text>
       ) : (
         history.map(w => (
           <View key={w.id} style={styles.card}>

@@ -1,14 +1,10 @@
 import { Tabs } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
-import { C, F } from '@/constants/theme';
+import { StyleSheet, Text } from 'react-native';
+import { C } from '@/constants/theme';
 
-function TabIcon({ focused, label, icon }: { focused: boolean; label: string; icon: string }) {
-  return (
-    <View style={styles.tab}>
-      <Text style={[styles.icon, focused && styles.iconActive]}>{icon}</Text>
-      <Text style={[styles.label, focused && styles.labelActive]}>{label}</Text>
-    </View>
-  );
+// Glyph icon that picks up the tab's active/inactive tint via `color`.
+function TabGlyph({ glyph, color }: { glyph: string; color: string }) {
+  return <Text style={[styles.icon, { color }]}>{glyph}</Text>;
 }
 
 export default function TabLayout() {
@@ -19,33 +15,33 @@ export default function TabLayout() {
         tabBarStyle: styles.bar,
         tabBarActiveTintColor: C.accent,
         tabBarInactiveTintColor: C.text3,
-        tabBarShowLabel: false,
+        tabBarShowLabel: true,
+        tabBarLabelStyle: styles.label,
+        tabBarIconStyle: styles.iconSlot,
       }}
     >
       <Tabs.Screen
         name="index"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} label="Today" icon="⊙" />,
+          title: 'Today',
+          tabBarIcon: ({ color }) => <TabGlyph glyph="⊙" color={color} />,
         }}
       />
       <Tabs.Screen
         name="history"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} label="History" icon="◷" />,
+          title: 'History',
+          tabBarIcon: ({ color }) => <TabGlyph glyph="◷" color={color} />,
         }}
       />
       <Tabs.Screen
         name="programs"
         options={{
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} label="Programs" icon="≡" />,
+          title: 'Programs',
+          tabBarIcon: ({ color }) => <TabGlyph glyph="≡" color={color} />,
         }}
       />
-      <Tabs.Screen
-        name="exercises"
-        options={{
-          tabBarIcon: ({ focused }) => <TabIcon focused={focused} label="Exercises" icon="⊞" />,
-        }}
-      />
+      <Tabs.Screen name="exercises" options={{ href: null }} />
     </Tabs>
   );
 }
@@ -56,11 +52,10 @@ const styles = StyleSheet.create({
     borderTopColor: C.border,
     borderTopWidth: StyleSheet.hairlineWidth,
     height: 64,
+    paddingTop: 6,
     paddingBottom: 8,
   },
-  tab: { alignItems: 'center', gap: 2, paddingTop: 4 },
-  icon: { fontSize: 20, color: C.text3 },
-  iconActive: { color: C.accent },
-  label: { fontSize: F.xs - 1, fontWeight: '600', color: C.text3 },
-  labelActive: { color: C.accent },
+  iconSlot: { height: 22 },
+  icon: { fontSize: 20 },
+  label: { fontSize: 11, fontWeight: '600' },
 });

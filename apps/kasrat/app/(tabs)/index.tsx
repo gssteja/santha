@@ -9,8 +9,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store/StoreContext';
-import { makeExerciseBlock } from '@/store/workoutStore';
+import { makeProgramExerciseBlock } from '@/store/workoutStore';
+import { PROGRAMS, isHeavyWeek, isWaved, resolveReps, repsToInput } from '@/store/programs';
 import { C, F } from '@/constants/theme';
+
+function slugify(name: string) {
+  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
 
 function fmtTime(secs: number) {
   const m = Math.floor(secs / 60);
@@ -24,16 +29,20 @@ function fmtDate(iso: string) {
   });
 }
 
-const PUSH_DAY_TEMPLATE = [
-  makeExerciseBlock('bench', 'Bench Press', 'Chest'),
-  makeExerciseBlock('ohp', 'Overhead Press', 'Shoulders'),
-  makeExerciseBlock('tricep-push', 'Tricep Pushdown', 'Triceps'),
-];
+function fmtAgo(ts: number) {
+  const s = Math.floor((Date.now() - ts) / 1000);
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60);
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}
 
 export default function TodayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { activeWorkout, history, startWorkout, addExercise } = useStore();
+  const { activeWorkout, history, program, startWorkout, addExercise, getPreviousSets, syncing, lastSyncedAt } = useStore();
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -49,14 +58,30 @@ export default function TodayScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [activeWorkout?.id]);
 
-  function handleStart() {
-    startWorkout('Workout');
+  const activeProgram = PROGRAMS[0];
+  const nextDay = activeProgram?.days[program.dayIndex];
+  const heavy = isHeavyWeek(program.week);
+
+  function handleStartNextDay() {
+    if (!nextDay) return handleStart();
+    startWorkout(nextDay.name);
+    for (const ex of nextDay.exercises) {
+      addExercise(
+        makeProgramExerciseBlock(
+          slugify(ex.name),
+          ex.name,
+          ex.muscle ?? '',
+          ex.sets,
+          repsToInput(ex.reps, program.week),
+          getPreviousSets(ex.name),
+        ),
+      );
+    }
     router.push('/workout');
   }
 
-  function handleTemplate() {
-    startWorkout('Push Day');
-    for (const ex of PUSH_DAY_TEMPLATE) addExercise(ex);
+  function handleStart() {
+    startWorkout('Workout');
     router.push('/workout');
   }
 
@@ -75,6 +100,12 @@ export default function TodayScreen() {
       <View style={styles.pageHeader}>
         <Text style={styles.title}>Today</Text>
         <Text style={styles.date}>{today}</Text>
+        <View style={styles.syncRow}>
+          <View style={[styles.syncDot, syncing ? styles.syncDotBusy : lastSyncedAt ? styles.syncDotOk : styles.syncDotIdle]} />
+          <Text style={styles.syncText}>
+            {syncing ? 'Syncing…' : lastSyncedAt ? `Synced ${fmtAgo(lastSyncedAt)}` : 'Not synced yet'}
+          </Text>
+        </View>
       </View>
 
       {/* Active workout banner */}
@@ -88,14 +119,42 @@ export default function TodayScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Start cards */}
+      {/* Next program day */}
       {!activeWorkout && (
         <View style={styles.startCard}>
-          <TouchableOpacity style={styles.btnPrimary} onPress={handleStart}>
-            <Text style={styles.btnPrimaryText}>Finally.</Text>
+          {nextDay && (
+            <View style={styles.nextHeader}>
+              <Text style={styles.nextLabel}>Next up</Text>
+              <Text style={styles.weekChip}>
+                Week {program.week} · {heavy ? 'Heavy' : 'Light'}
+              </Text>
+            </View>
+          )}
+          {nextDay && <Text style={styles.nextDayName}>{nextDay.name}</Text>}
+          {nextDay && (
+            <View style={styles.exList}>
+              {nextDay.exercises.map((ex, i) => (
+                <View key={i} style={styles.exRow}>
+                  <Text style={styles.exName} numberOfLines={1}>{ex.name}</Text>
+                  <View style={styles.exTarget}>
+                    {isWaved(ex.reps) && (
+                      <Text style={styles.waveTag}>{heavy ? 'HEAVY' : 'LIGHT'}</Text>
+                    )}
+                    <Text style={styles.exSetsReps}>
+                      {ex.sets}×{resolveReps(ex.reps, program.week)}
+                    </Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+          )}
+          <TouchableOpacity style={styles.btnPrimary} onPress={handleStartNextDay}>
+            <Text style={styles.btnPrimaryText}>
+              {nextDay ? 'Start' : 'Start workout'}
+            </Text>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.btnSecondary} onPress={handleTemplate}>
-            <Text style={styles.btnSecondaryText}>Push Day Template</Text>
+          <TouchableOpacity style={styles.btnSecondary} onPress={handleStart}>
+            <Text style={styles.btnSecondaryText}>Empty workout</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -103,7 +162,7 @@ export default function TodayScreen() {
       {/* Recent */}
       <Text style={styles.sectionLabel}>Recent</Text>
       {recent.length === 0 ? (
-        <Text style={styles.empty}>No history. Acchi baat hai — nothing to be ashamed of yet.</Text>
+        <Text style={styles.empty}>No workouts yet.</Text>
       ) : (
         recent.map(w => (
           <View key={w.id} style={styles.historyRow}>
@@ -136,6 +195,12 @@ const styles = StyleSheet.create({
   pageHeader: { paddingHorizontal: 20, paddingBottom: 16 },
   title: { fontSize: F.xxxl, fontWeight: '700', color: C.text },
   date: { fontSize: F.sm, color: C.text2, marginTop: 2 },
+  syncRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 6 },
+  syncDot: { width: 7, height: 7, borderRadius: 4 },
+  syncDotBusy: { backgroundColor: C.accent },
+  syncDotOk: { backgroundColor: C.green },
+  syncDotIdle: { backgroundColor: C.text3 },
+  syncText: { fontSize: F.xs, color: C.text3 },
   activeBanner: {
     marginHorizontal: 16,
     marginBottom: 12,
@@ -159,6 +224,27 @@ const styles = StyleSheet.create({
     gap: 10,
     marginBottom: 8,
   },
+  nextHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  nextLabel: {
+    fontSize: F.xs,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+    color: C.text3,
+  },
+  weekChip: { fontSize: F.xs, fontWeight: '700', color: C.accent },
+  nextDayName: { fontSize: F.lg, fontWeight: '700', color: C.text, marginTop: -2 },
+  exList: { gap: 6, marginBottom: 2 },
+  exRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  exName: { color: C.text2, fontSize: F.xs, flex: 1, marginRight: 8 },
+  exTarget: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  waveTag: {
+    fontSize: F.xs - 2,
+    fontWeight: '800',
+    color: C.accent,
+    letterSpacing: 0.5,
+  },
+  exSetsReps: { color: C.text3, fontSize: F.xs, fontVariant: ['tabular-nums'] },
   btnPrimary: {
     backgroundColor: C.accent,
     borderRadius: 12,
