@@ -6,6 +6,9 @@ apps/kasrat/node_modules/
 apps/kasrat/android/
 apps/kasrat/.expo/
 apps/kasrat/dist/
+apps/santha/android/
+apps/santha/.expo/
+apps/santha/dist/
 
 # env / secrets
 .env
@@ -19,3 +22,7 @@ apps/kasrat/.env
 
 # expo
 apps/kasrat/.expo-shared/
+apps/santha/.expo-shared/
+
+# IDE
+.idea/

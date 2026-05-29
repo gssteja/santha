@@ -1,0 +1,33 @@
+{
+  "expo": {
+    "name": "Santha",
+    "slug": "santha",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "santha",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0d0d10"
+    },
+    "android": {
+      "package": "com.santha.store",
+      "permissions": [
+        "REQUEST_INSTALL_PACKAGES",
+        "INTERNET"
+      ],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0d0d10"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
