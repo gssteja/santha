@@ -69,6 +69,10 @@ jobs:
           KASRAT_KEY_PASSWORD: ${{ secrets.KASRAT_KEY_PASSWORD }}
         run: |
           chmod +x android/gradlew
+          # Fresh node_modules (npm ci) lack the per-library codegen JNI dirs that the
+          # CMake step expects; generate them first or configureCMake* fails with
+          # "...source/codegen/jni/ which is not an existing directory".
+          (cd android && ./gradlew generateCodegenArtifactsFromSchema --no-daemon)
           (cd android && ./gradlew assembleRelease --no-daemon \
             -PKASRAT_UPLOAD_STORE_FILE=release.keystore \
             -PKASRAT_UPLOAD_STORE_PASSWORD="$KASRAT_KEYSTORE_PASSWORD" \
