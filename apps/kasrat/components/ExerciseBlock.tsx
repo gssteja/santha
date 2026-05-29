@@ -122,6 +122,9 @@ export function ExerciseBlock({
         </View>
       )}
 
+      {/* Coaching cue from the program */}
+      {exercise.note ? <Text style={s.note}>{exercise.note}</Text> : null}
+
       {/* Column headers */}
       <View style={s.colHeader}>
         <Text style={[s.colText, s.colSet]}>Set</Text>
@@ -225,6 +228,14 @@ const s = StyleSheet.create({
   targetTag: { color: C.text2, backgroundColor: C.surface2, fontVariant: ['tabular-nums'] },
   sideTag: { color: C.green, backgroundColor: 'rgba(34,197,94,0.13)' },
   volText: { color: C.text3, fontSize: F.xs, marginTop: 4 },
+  note: {
+    color: C.text3,
+    fontSize: F.xs,
+    lineHeight: 16,
+    fontStyle: 'italic',
+    paddingHorizontal: 14,
+    paddingBottom: 10,
+  },
   poBadge: {
     backgroundColor: 'rgba(34,197,94,0.15)',
     borderWidth: 1,

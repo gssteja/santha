@@ -438,7 +438,7 @@ export function makeProgramExerciseBlock(
   setCount: number,
   reps: string,
   prevSets?: WorkoutSet[],
-  opts?: { perSide?: boolean; target?: string; heavy?: boolean; waved?: boolean },
+  opts?: { perSide?: boolean; target?: string; heavy?: boolean; waved?: boolean; note?: string },
 ): WorkoutExercise {
   const n = Math.max(1, setCount);
   const sets: WorkoutSet[] = Array.from({ length: n }, (_, i) => ({
@@ -455,5 +455,6 @@ export function makeProgramExerciseBlock(
     target: opts?.target,
     heavy: opts?.heavy,
     waved: opts?.waved,
+    note: opts?.note,
   };
 }

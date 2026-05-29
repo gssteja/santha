@@ -77,7 +77,7 @@ export default function TodayScreen() {
           ex.sets,
           repsToInput(ex.reps, program.week),
           getPhaseSets(ex.name, program.week, waved),
-          { perSide, target, waved, heavy: waved && heavy },
+          { perSide, target, waved, heavy: waved && heavy, note: ex.note },
         ),
       );
     }

@@ -17,6 +17,8 @@ export type WorkoutExercise = {
   heavy?: boolean;
   /** Whether this exercise undulates heavy/light by week (drives the HEAVY/LIGHT chip). */
   waved?: boolean;
+  /** Coaching cue from the program, shown under the exercise during the workout. */
+  note?: string;
 };
 
 export type ActiveWorkout = {
