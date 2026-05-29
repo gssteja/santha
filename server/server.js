@@ -62,10 +62,25 @@ app.get('/api/apps', (_req, res) => {
         id: name,
         type: hasApk ? 'apk' : 'pwa',
         url: hasApk ? `/apps/${name}/app.apk` : `/apps/${name}/`,
+        // friendly-named download (Content-Disposition: <Name>-<version>.apk)
+        download: hasApk ? `/apps/${name}/download` : null,
         size: hasApk ? fs.statSync(path.join(appDir, 'app.apk')).size : null,
       };
     });
   res.json(apps);
+});
+
+// Download APK with a friendly filename: <Name>-<version>.apk (vs the on-disk app.apk)
+app.get('/apps/:id/download', (req, res) => {
+  const id = req.params.id;
+  if (!/^[a-z0-9-]+$/.test(id)) return res.status(400).json({ error: 'invalid id' });
+  const appDir = path.join(APPS_DIR, id);
+  const apkPath = path.join(appDir, 'app.apk');
+  if (!fs.existsSync(apkPath)) return res.status(404).json({ error: 'not found' });
+  const meta = readMeta(appDir, id);
+  const safeName = String(meta.name || id).replace(/[^A-Za-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '') || id;
+  const ver = meta.version ? `-${String(meta.version).replace(/[^A-Za-z0-9._-]+/g, '')}` : '';
+  res.download(apkPath, `${safeName}${ver}.apk`);
 });
 
 // Upload APK — POST /api/apk/:id (multipart/form-data, field: apk)
