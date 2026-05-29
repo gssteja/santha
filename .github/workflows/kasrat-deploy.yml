@@ -67,6 +67,7 @@ jobs:
           KASRAT_KEYSTORE_PASSWORD: ${{ secrets.KASRAT_KEYSTORE_PASSWORD }}
           KASRAT_KEY_ALIAS: ${{ secrets.KASRAT_KEY_ALIAS }}
           KASRAT_KEY_PASSWORD: ${{ secrets.KASRAT_KEY_PASSWORD }}
+          EXPO_PUBLIC_STORE_KEY: ${{ secrets.EXPO_PUBLIC_STORE_KEY }}
         run: |
           chmod +x android/gradlew
           # Fresh node_modules (npm ci) lack the per-library codegen JNI dirs that the
@@ -86,7 +87,7 @@ jobs:
           curl -fsS -X POST https://santha.t3ja.com/api/apk/kasrat \
             -H "x-api-key: ${{ secrets.SANTHA_API_KEY }}" \
             -F apk=@"$APK" \
-            -F 'meta={"name":"Kasrat","description":"Workout. Noppulu vasthaayi.","icon":"🏋️","category":"workout","version":"${{ steps.ver.outputs.version }}","id":"kasrat","type":"apk"}'
+            -F 'meta={"name":"Kasrat","description":"","icon":"🏋️","category":"workout","version":"${{ steps.ver.outputs.version }}","id":"kasrat","type":"apk"}'
           echo "✓ Deployed Kasrat ${{ steps.ver.outputs.version }}"
 
       - name: Upload APK artifact

@@ -68,6 +68,7 @@ jobs:
           SANTHA_KEYSTORE_PASSWORD: ${{ secrets.SANTHA_KEYSTORE_PASSWORD }}
           SANTHA_KEY_ALIAS: ${{ secrets.SANTHA_KEY_ALIAS }}
           SANTHA_KEY_PASSWORD: ${{ secrets.SANTHA_KEY_PASSWORD }}
+          EXPO_PUBLIC_STORE_KEY: ${{ secrets.EXPO_PUBLIC_STORE_KEY }}
         run: |
           chmod +x android/gradlew
           # Fresh node_modules (npm ci) lack the per-library codegen JNI dirs that the

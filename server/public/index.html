@@ -16,17 +16,29 @@
       padding: 24px 20px 16px;
       border-bottom: 1px solid #1e1e2a;
     }
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
     header h1 {
       font-size: 28px;
       font-weight: 700;
       letter-spacing: -0.5px;
       color: #fff;
     }
-    header p {
+    .install-santha {
+      background: #e8b04b;
+      color: #0d0d10;
       font-size: 13px;
-      color: #666;
-      margin-top: 4px;
+      font-weight: 700;
+      text-decoration: none;
+      border-radius: 20px;
+      padding: 8px 16px;
+      white-space: nowrap;
     }
+    .install-santha:active { background: #d49a30; }
     #apps-grid {
       padding: 20px;
       display: grid;
@@ -102,7 +114,7 @@
 <body>
   <header>
     <h1>Santha</h1>
-    <p>Your personal app store</p>
+    <a id="install-santha" class="install-santha" style="display:none">Install Santha</a>
   </header>
   <div id="apps-grid">
     <div class="loading">Loading...</div>
@@ -126,7 +138,18 @@
       const grid = document.getElementById('apps-grid');
       try {
         const res = await fetch('/api/apps');
-        const apps = await res.json();
+        const all = await res.json();
+
+        // Santha (the store itself) gets a dedicated header install button, not a grid card.
+        const santha = all.find(a => a.id === 'santha');
+        const btn = document.getElementById('install-santha');
+        if (santha && santha.type === 'apk') {
+          btn.href = santha.download || santha.url;
+          btn.textContent = santha.version ? `Install Santha v${santha.version}` : 'Install Santha';
+          btn.style.display = '';
+        }
+
+        const apps = all.filter(a => a.id !== 'santha');
         if (!apps.length) {
           grid.innerHTML = '<div class="empty"><p>No apps yet.<br>Ask Claude to build one.</p></div>';
           return;

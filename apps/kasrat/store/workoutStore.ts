@@ -1,6 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
-import { SERVER_URL } from '@/constants/config';
+import { SERVER_URL, STORE_KEY } from '@/constants/config';
 import { PROGRAMS } from '@/store/programs';
 import type { ActiveWorkout, WorkoutExercise, WorkoutRecord, WorkoutSet } from '@/types';
 
@@ -220,7 +220,7 @@ async function syncToServer(records: WorkoutRecord[]): Promise<boolean> {
   try {
     const res = await fetch(`${SERVER_URL}/api/workouts/sync`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', 'x-api-key': STORE_KEY },
       body: JSON.stringify(records),
     });
     return res.ok;
@@ -232,7 +232,10 @@ async function syncToServer(records: WorkoutRecord[]): Promise<boolean> {
 
 async function fetchFromServer(): Promise<WorkoutRecord[]> {
   try {
-    const res = await fetch(`${SERVER_URL}/api/workouts`, { signal: AbortSignal.timeout(5000) });
+    const res = await fetch(`${SERVER_URL}/api/workouts`, {
+      headers: { 'x-api-key': STORE_KEY },
+      signal: AbortSignal.timeout(5000),
+    });
     if (!res.ok) return [];
     return await res.json();
   } catch {

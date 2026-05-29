@@ -25,7 +25,8 @@ export default function Store() {
 
   const load = useCallback(async () => {
     try {
-      const apps = await fetchApps();
+      // Hide Santha itself — the store shouldn't list itself as an installable app.
+      const apps = (await fetchApps()).filter(a => a.id !== 'santha');
       setState({ status: 'ready', apps });
     } catch {
       setState({ status: 'error' });

@@ -40,6 +40,17 @@ function requireApiKey(req, res, next) {
   next();
 }
 
+// Low-privilege app key: lets the Kasrat/Santha apps read the store + read/write
+// workouts. Distinct from the powerful deploy key (API_KEY) which is CI-only.
+const APP_KEY = process.env.SANTHA_APP_KEY;
+function requireAppKey(req, res, next) {
+  const key = req.headers['x-api-key'];
+  if (!APP_KEY || key !== APP_KEY) {
+    return res.status(401).json({ error: 'unauthorized' });
+  }
+  next();
+}
+
 function readMeta(appDir, name) {
   const metaPath = path.join(appDir, 'meta.json');
   return fs.existsSync(metaPath)
@@ -135,12 +146,12 @@ function writeWorkouts(records) {
 }
 
 // GET /api/workouts — full history
-app.get('/api/workouts', (_req, res) => {
+app.get('/api/workouts', requireAppKey, (_req, res) => {
   res.json(readWorkouts());
 });
 
 // POST /api/workouts/sync — merge incoming records (client pushes, server merges by id)
-app.post('/api/workouts/sync', (req, res) => {
+app.post('/api/workouts/sync', requireAppKey, (req, res) => {
   const incoming = req.body;
   if (!Array.isArray(incoming)) return res.status(400).json({ error: 'expected array' });
   const existing = readWorkouts();
@@ -154,7 +165,7 @@ app.post('/api/workouts/sync', (req, res) => {
 });
 
 // DELETE /api/workouts/:id
-app.delete('/api/workouts/:id', (req, res) => {
+app.delete('/api/workouts/:id', requireAppKey, (req, res) => {
   const records = readWorkouts().filter(r => r.id !== req.params.id);
   writeWorkouts(records);
   res.json({ ok: true });

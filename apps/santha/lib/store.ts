@@ -1,11 +1,13 @@
 import * as FileSystem from 'expo-file-system';
 import * as IntentLauncher from 'expo-intent-launcher';
 import * as Linking from 'expo-linking';
-import { SERVER_URL } from '@/constants/config';
+import { SERVER_URL, STORE_KEY } from '@/constants/config';
 import type { StoreApp } from '@/types';
 
 export async function fetchApps(): Promise<StoreApp[]> {
-  const res = await fetch(`${SERVER_URL}/api/apps`);
+  const res = await fetch(`${SERVER_URL}/api/apps`, {
+    headers: { 'x-api-key': STORE_KEY },
+  });
   if (!res.ok) throw new Error(`server ${res.status}`);
   return res.json();
 }
@@ -38,7 +40,7 @@ export async function installApk(
   const dl = FileSystem.createDownloadResumable(
     absoluteUrl(app),
     target,
-    {},
+    { headers: { 'x-api-key': STORE_KEY } },
     (p) => {
       if (onProgress && p.totalBytesExpectedToWrite > 0) {
         onProgress(p.totalBytesWritten / p.totalBytesExpectedToWrite);
