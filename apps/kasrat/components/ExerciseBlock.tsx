@@ -38,9 +38,11 @@ export function ExerciseBlock({
   const [swapping, setSwapping] = useState(false);
   const [swapName, setSwapName] = useState('');
 
-  const exerciseVolume = exercise.sets
-    .filter(s => s.done)
-    .reduce((acc, s) => acc + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
+  const exerciseVolume =
+    exercise.sets
+      .filter(s => s.done)
+      .reduce((acc, s) => acc + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0) *
+    (exercise.perSide ? 2 : 1);
 
   function handleRemove() {
     Alert.alert('Remove exercise?', exercise.name, [
@@ -71,8 +73,21 @@ export function ExerciseBlock({
             )}
           </View>
           <Text style={s.muscle}>{exercise.muscle}</Text>
+          {(exercise.waved || exercise.target || exercise.perSide) && (
+            <View style={s.tagRow}>
+              {exercise.waved && (
+                <Text style={[s.tag, exercise.heavy ? s.heavyTag : s.lightTag]}>
+                  {exercise.heavy ? 'HEAVY' : 'LIGHT'}
+                </Text>
+              )}
+              {exercise.target ? <Text style={[s.tag, s.targetTag]}>{exercise.target}</Text> : null}
+              {exercise.perSide ? <Text style={[s.tag, s.sideTag]}>PER SIDE</Text> : null}
+            </View>
+          )}
           {exerciseVolume > 0 && (
-            <Text style={s.volText}>{exerciseVolume.toLocaleString()} lb volume</Text>
+            <Text style={s.volText}>
+              {exerciseVolume.toLocaleString()} lb volume{exercise.perSide ? ' (both sides)' : ''}
+            </Text>
           )}
         </View>
         <View style={s.headerActions}>
@@ -112,7 +127,7 @@ export function ExerciseBlock({
         <Text style={[s.colText, s.colSet]}>Set</Text>
         <Text style={[s.colText, s.colPrev]}>Previous</Text>
         <Text style={[s.colText, s.colInput]}>lb</Text>
-        <Text style={[s.colText, s.colInput]}>Reps</Text>
+        <Text style={[s.colText, s.colInput]}>{exercise.perSide ? 'Reps/side' : 'Reps'}</Text>
         <Text style={[s.colText, s.colLog]}></Text>
       </View>
 
@@ -195,6 +210,20 @@ const s = StyleSheet.create({
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
   name: { color: C.text, fontSize: F.base, fontWeight: '700', flexShrink: 1 },
   muscle: { color: C.accent, fontSize: F.xs, fontWeight: '600', marginTop: 2 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 5 },
+  tag: {
+    fontSize: F.xs - 1,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    borderRadius: 5,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    overflow: 'hidden',
+  },
+  heavyTag: { color: C.accent, backgroundColor: 'rgba(99,102,241,0.15)' },
+  lightTag: { color: C.text3, backgroundColor: C.surface2 },
+  targetTag: { color: C.text2, backgroundColor: C.surface2, fontVariant: ['tabular-nums'] },
+  sideTag: { color: C.green, backgroundColor: 'rgba(34,197,94,0.13)' },
   volText: { color: C.text3, fontSize: F.xs, marginTop: 4 },
   poBadge: {
     backgroundColor: 'rgba(34,197,94,0.15)',

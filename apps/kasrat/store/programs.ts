@@ -12,6 +12,8 @@ export type ProgramExercise = {
   reps: string;
   muscle?: string;
   note?: string;
+  /** Unilateral (one side at a time) — reps are per side, volume counts both sides. */
+  perSide?: boolean;
 };
 
 export type ProgramDay = {
@@ -57,7 +59,7 @@ export const PROGRAMS: Program[] = [
           { name: 'Romanian Deadlift', sets: 3, reps: '12', muscle: 'Hamstrings', note: 'Stay 2–3 reps shy of failure — big stretch = muscle damage. Hips straight back, stop just below the knees, no lower-back rounding. Keep it light/MMC.' },
           { name: 'Chest-Supported Row', sets: 3, reps: '15', muscle: 'Back', note: 'Chest support spares the lower back. Exaggerate scapular protraction at the bottom → full retraction at the top.' },
           { name: 'Standing Arnold Press', sets: 3, reps: '12', muscle: 'Shoulders', note: 'Standing = more lateral delt. Initiate by sweeping the dumbbells out (rear delt), then press up.' },
-          { name: 'Triceps Pressdown', sets: 3, reps: '15', muscle: 'Triceps', note: 'One arm at a time, weak side first. Let the elbow drift forward at the top to stretch and smash the long head.' },
+          { name: 'Triceps Pressdown', sets: 3, reps: '15', muscle: 'Triceps', perSide: true, note: 'One arm at a time, weak side first. Let the elbow drift forward at the top to stretch and smash the long head.' },
           { name: 'Smith Machine Shrug', sets: 3, reps: '12–15', muscle: 'Traps', note: 'Lighter load, strong mind-muscle — not a max-weight contest. Wide grip; shrug up & in like lifting your shoulders to your ears.' },
         ],
       },
@@ -78,10 +80,10 @@ export const PROGRAMS: Program[] = [
           { name: 'Reset Deadlift (wk A: 3×5 @75% · wk B: 3×2 heavy)', sets: 3, reps: '5 / 2', muscle: 'Hamstrings', note: 'Full dead stop & reset on the floor every rep — no bounce/momentum. Sumo favored here (more quad, less lower back) or pick your stronger stance. Cue lats by pulling the bar toward your shins. Linear load increase each week per rep scheme.' },
           { name: 'Weighted Dip', sets: 3, reps: '8', muscle: 'Chest', note: 'Shoulder blades retracted & depressed; ~90° elbow bend. Lean ~30° forward and drive your hands down like a press — hits the whole pec, not just lower.' },
           { name: 'Leg Extension', sets: 3, reps: '20', muscle: 'Quads', note: 'Squeeze the quads to move the weight (and flex on the negative); keep glutes/hams/calves loose. Strong MMC — you may need to stop a bit short once the burn hits.' },
-          { name: 'Unilateral Lat Pulldown', sets: 3, reps: '12 / side', muscle: 'Back', note: 'One arm at a time — fixes side-to-side asymmetry and adds loading variety. Pull the elbow down AND in (extension + adduction).' },
+          { name: 'Unilateral Lat Pulldown', sets: 3, reps: '12 / side', muscle: 'Back', perSide: true, note: 'One arm at a time — fixes side-to-side asymmetry and adds loading variety. Pull the elbow down AND in (extension + adduction).' },
           { name: 'Giant Set C1: Rope Face Pull (rear-delt)', sets: 3, reps: '15', muscle: 'Shoulders', note: 'Rear-delt version: externally rotate and pull the rope to your forehead, like hitting a rear double-biceps pose.' },
           { name: 'Giant Set C2: Cable Overhead Triceps Extension', sets: 3, reps: '15', muscle: 'Triceps', note: 'Rope, both arms. Let the triceps stretch back at the bottom; squeeze to full elbow lockout. Cable keeps tension constant.' },
-          { name: 'Giant Set C3: Egyptian Lateral Raise', sets: 3, reps: '15', muscle: 'Shoulders', note: 'Cable between the legs for constant tension; let it travel down for a deep stretch on the side delt.' },
+          { name: 'Giant Set C3: Egyptian Lateral Raise', sets: 3, reps: '15', muscle: 'Shoulders', perSide: true, note: 'Cable between the legs for constant tension; let it travel down for a deep stretch on the side delt.' },
         ],
       },
       {
@@ -91,7 +93,7 @@ export const PROGRAMS: Program[] = [
           { name: 'Dumbbell Lateral Raise', sets: 3, reps: '15', muscle: 'Shoulders', note: 'Contracted-position loading = low muscle damage, so push close to failure. (Day 4 used the stretch-loaded cable version — alternated on purpose.)' },
           { name: 'Seated Cable Row', sets: 3, reps: '12', muscle: 'Back', note: 'Lat-dominant: pull elbows down and tucked to your sides (drop the weight a bit). Lean forward slightly on the eccentric for more lat stretch.' },
           { name: 'Lying Leg Curl', sets: 3, reps: '12', muscle: 'Hamstrings', note: 'Only leg work today. Keep the pads pinned against your ankles — squeeze the hamstrings, don’t heave with momentum. Posterior chain may still be tired from Day 4 deadlifts.' },
-          { name: 'Dumbbell Concentration Curl', sets: 3, reps: '12', muscle: 'Biceps', note: 'Elbow pinned to the leg. Supinate by driving through the pinky (neutral at bottom → palm up at top); loose grip so the forearm doesn’t take over.' },
+          { name: 'Dumbbell Concentration Curl', sets: 3, reps: '12', muscle: 'Biceps', perSide: true, note: 'Elbow pinned to the leg. Supinate by driving through the pinky (neutral at bottom → palm up at top); loose grip so the forearm doesn’t take over.' },
           { name: 'Cable Crunch', sets: 4, reps: '15', muscle: 'Core', note: 'Round the lower back — spinal flexion is the point. Lock shoulders/arms; squeeze the abs together like an accordion, not a hip hinge.' },
           { name: 'Seated Calf Raise', sets: 4, reps: '15', muscle: 'Calves', note: 'Bent-leg + higher reps for metabolic stress (Day 3 was straight-leg heavy 4×8). Roll over the balls of your feet, pause at the bottom, strong squeeze at the top.' },
           { name: 'Push-Ups (AMRAP, to failure)', sets: 2, reps: 'Max', muscle: 'Chest', note: 'Max-effort week finisher — rest days follow, so don’t hold back. Nose, chest and stomach all touch the floor each rep. Try to add 1 rep to both sets over the program.' },

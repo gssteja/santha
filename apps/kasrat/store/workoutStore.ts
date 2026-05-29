@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { SERVER_URL, STORE_KEY } from '@/constants/config';
-import { PROGRAMS } from '@/store/programs';
+import { PROGRAMS, isHeavyWeek } from '@/store/programs';
 import type { ActiveWorkout, WorkoutExercise, WorkoutRecord, WorkoutSet } from '@/types';
 
 const STORAGE_KEY = 'kasrat_v1';
@@ -169,10 +169,14 @@ function reducer(state: State, action: Action): State {
       const w = state.activeWorkout;
       const duration = Math.floor((Date.now() - w.startTime) / 1000);
       const completedSets = w.exercises.flatMap(e => e.sets.filter(s => s.done));
-      const volume = completedSets.reduce(
-        (acc, s) => acc + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0),
-        0
-      );
+      // Unilateral lifts count both sides toward volume.
+      const volume = w.exercises.reduce((acc, e) => {
+        const mult = e.perSide ? 2 : 1;
+        return acc + e.sets.filter(s => s.done).reduce(
+          (a, s) => a + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0) * mult,
+          0
+        );
+      }, 0);
       const record: WorkoutRecord = {
         id: w.id,
         name: w.name,
@@ -180,11 +184,13 @@ function reducer(state: State, action: Action): State {
         duration,
         sets: completedSets.length,
         volume: Math.round(volume),
+        week: state.program.week,
         exercises: w.exercises.map(e => e.name),
         exerciseData: w.exercises.map(e => ({
           name: e.name,
           muscle: e.muscle,
           sets: e.sets.filter(s => s.done),
+          perSide: e.perSide,
         })),
       };
       // If this workout was the suggested program day, advance the rotation.
@@ -296,13 +302,36 @@ export function useWorkoutStore() {
     [state.history]
   );
 
-  // Live volume for active workout
+  // Phase-aware previous: for waved lifts, the most recent log from the SAME phase
+  // (heavy weeks pull last heavy-week sets, light pull last light). Falls back to any
+  // record lacking a stored week. Non-waved lifts just use the most recent log.
+  const getPhaseSets = useCallback(
+    (exerciseName: string, week: number, waved: boolean): WorkoutSet[] => {
+      for (const record of state.history) {
+        if (waved && record.week !== undefined && isHeavyWeek(record.week) !== isHeavyWeek(week)) {
+          continue;
+        }
+        const ex = record.exerciseData?.find(
+          e => e.name.toLowerCase() === exerciseName.toLowerCase()
+        );
+        if (ex && ex.sets.length > 0) return ex.sets;
+      }
+      return [];
+    },
+    [state.history]
+  );
+
+  // Live volume for active workout (unilateral lifts count both sides)
   const activeVolume = useMemo(() => {
     if (!state.activeWorkout) return 0;
     return Math.round(
-      state.activeWorkout.exercises
-        .flatMap(e => e.sets.filter(s => s.done))
-        .reduce((acc, s) => acc + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0)
+      state.activeWorkout.exercises.reduce((acc, e) => {
+        const mult = e.perSide ? 2 : 1;
+        return acc + e.sets.filter(s => s.done).reduce(
+          (a, s) => a + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0) * mult,
+          0
+        );
+      }, 0)
     );
   }, [state.activeWorkout]);
 
@@ -380,6 +409,7 @@ export function useWorkoutStore() {
     ...state,
     activeVolume,
     getPreviousSets,
+    getPhaseSets,
     isProgressiveOverload,
     startWorkout,
     addExercise,
@@ -408,6 +438,7 @@ export function makeProgramExerciseBlock(
   setCount: number,
   reps: string,
   prevSets?: WorkoutSet[],
+  opts?: { perSide?: boolean; target?: string; heavy?: boolean; waved?: boolean },
 ): WorkoutExercise {
   const n = Math.max(1, setCount);
   const sets: WorkoutSet[] = Array.from({ length: n }, (_, i) => ({
@@ -415,5 +446,14 @@ export function makeProgramExerciseBlock(
     reps,
     done: false,
   }));
-  return { exId, name, muscle, sets };
+  return {
+    exId,
+    name,
+    muscle,
+    sets,
+    perSide: opts?.perSide,
+    target: opts?.target,
+    heavy: opts?.heavy,
+    waved: opts?.waved,
+  };
 }

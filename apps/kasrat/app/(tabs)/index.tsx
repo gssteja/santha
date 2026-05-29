@@ -42,7 +42,7 @@ function fmtAgo(ts: number) {
 export default function TodayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { activeWorkout, history, program, startWorkout, addExercise, getPreviousSets, syncing, lastSyncedAt } = useStore();
+  const { activeWorkout, history, program, startWorkout, addExercise, getPhaseSets, syncing, lastSyncedAt } = useStore();
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -66,6 +66,9 @@ export default function TodayScreen() {
     if (!nextDay) return handleStart();
     startWorkout(nextDay.name);
     for (const ex of nextDay.exercises) {
+      const waved = isWaved(ex.reps);
+      const perSide = !!ex.perSide || /\/\s*side/i.test(ex.reps);
+      const target = `${ex.sets}×${resolveReps(ex.reps, program.week)}`;
       addExercise(
         makeProgramExerciseBlock(
           slugify(ex.name),
@@ -73,7 +76,8 @@ export default function TodayScreen() {
           ex.muscle ?? '',
           ex.sets,
           repsToInput(ex.reps, program.week),
-          getPreviousSets(ex.name),
+          getPhaseSets(ex.name, program.week, waved),
+          { perSide, target, waved, heavy: waved && heavy },
         ),
       );
     }
