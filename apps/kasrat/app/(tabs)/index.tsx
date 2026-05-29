@@ -110,7 +110,7 @@ export default function TodayScreen() {
             <View>
               <Text style={styles.historyName}>{w.name}</Text>
               <Text style={styles.historyMeta}>
-                {fmtDate(w.date)} · {fmtTime(w.duration)} · {w.sets} sets · {w.volume.toLocaleString()} kg
+                {fmtDate(w.date)} · {fmtTime(w.duration)} · {w.sets} sets · {w.volume.toLocaleString()} lb
               </Text>
               <View style={styles.exTags}>
                 {w.exercises.slice(0, 3).map(e => (

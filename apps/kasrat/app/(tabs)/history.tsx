@@ -52,7 +52,7 @@ export default function HistoryScreen() {
               <View style={styles.statDivider} />
               <View style={styles.stat}>
                 <Text style={styles.statVal}>{w.volume.toLocaleString()}</Text>
-                <Text style={styles.statLabel}>kg volume</Text>
+                <Text style={styles.statLabel}>lb volume</Text>
               </View>
             </View>
 

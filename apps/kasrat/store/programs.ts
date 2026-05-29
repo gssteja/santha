@@ -1,5 +1,11 @@
-// Jeff Nippard — Pure Bodybuilding "Full Body" program, extracted from the official spreadsheet.
-// 5 training days per week (Full Body #1–4 + Arms & Weak Points) with rest days between blocks.
+// Jeff Nippard — High-Frequency Full-Body split ("Full Body Science Applied" series).
+// Five full-body days, each with a different muscle focus; every body part hit each session.
+// Day 1 = Leg Focus (quads / hamstrings / glutes). More focus days added as covered.
+//
+// Squat runs a 4-week weekly-undulating wave: heavy 4×4 @80% 1RM and light 3×6 @75% alternate
+// week to week, adding load on the heavy weeks. Keep ~2-3 reps in reserve (no failure on heavy
+// compounds — protects recovery for the next day on a high-frequency split). Only the biceps
+// curl is taken to failure. Pairs can be run as supersets if short on time.
 
 export type ProgramExercise = {
   name: string;
@@ -25,67 +31,22 @@ export type Program = {
 
 export const PROGRAMS: Program[] = [
   {
-    id: 'nippard-fullbody',
-    name: 'Pure Bodybuilding Full Body',
+    id: 'nippard-hf-fullbody',
+    name: 'High-Frequency Full Body',
     author: 'Jeff Nippard',
     split: 'Full Body',
-    daysPerCycle: 7,
-    description: 'High-frequency full body. Five sessions a week — four full-body days plus a dedicated arms & weak-points day. Stretch-mediated hypertrophy, last-set intensity, rest days between blocks.',
+    daysPerCycle: 5,
+    description: 'Five full-body days a week, each with a different focus. Day 1 prioritizes legs. The squat alternates weekly — heavy 4×4 @ 80% 1RM one week, lighter 3×6 @ 75% the next — adding load on the heavy weeks. Leave 2–3 reps in the tank on the squat; only the curl goes to failure.',
     days: [
       {
-        name: 'Full Body #1',
+        name: 'Day 1 — Leg Focus',
         exercises: [
-          { name: 'Cross-Body Lat Pull-Around', sets: 3, reps: '10–12', muscle: 'Back' },
-          { name: 'Low Incline Smith Machine Press', sets: 3, reps: '8–10', muscle: 'Chest' },
-          { name: 'Machine Hip Adduction', sets: 3, reps: '10–12', muscle: 'Glutes' },
-          { name: 'Leg Press', sets: 3, reps: '8', muscle: 'Quads' },
-          { name: 'Lying Paused Rope Face Pull', sets: 3, reps: '10–12', muscle: 'Shoulders' },
-          { name: 'Cable Crunch', sets: 3, reps: '10–12', muscle: 'Core' },
-        ],
-      },
-      {
-        name: 'Full Body #2',
-        exercises: [
-          { name: 'Seated DB Shoulder Press', sets: 3, reps: '10', muscle: 'Shoulders' },
-          { name: 'Paused Barbell RDL', sets: 2, reps: '8', muscle: 'Hamstrings' },
-          { name: 'Chest-Supported Machine Row', sets: 3, reps: '8–10', muscle: 'Back' },
-          { name: 'Hammer Preacher Curl', sets: 3, reps: '10–12', muscle: 'Biceps' },
-          { name: 'Cuffed Behind-The-Back Lateral Raise', sets: 3, reps: '10–12', muscle: 'Shoulders' },
-          { name: 'Overhead Cable Triceps Extension (Bar)', sets: 2, reps: '8–10', muscle: 'Triceps' },
-        ],
-      },
-      {
-        name: 'Full Body #3',
-        exercises: [
-          { name: 'Superset A1: Assisted Pull-Up', sets: 4, reps: '8–10', muscle: 'Back' },
-          { name: 'Superset A2: Paused Assisted Dip', sets: 4, reps: '8–10', muscle: 'Chest' },
-          { name: 'Superset B1: Seated Leg Curl', sets: 3, reps: '10–12', muscle: 'Hamstrings' },
-          { name: 'Superset B2: Leg Extension', sets: 3, reps: '10–12', muscle: 'Quads' },
-          { name: 'Cable Paused Shrug-In', sets: 3, reps: '10–12', muscle: 'Traps' },
-          { name: 'Roman Chair Leg Raise', sets: 3, reps: '10–20', muscle: 'Core' },
-        ],
-      },
-      {
-        name: 'Full Body #4',
-        exercises: [
-          { name: 'Lying Leg Curl', sets: 2, reps: '8–10', muscle: 'Hamstrings' },
-          { name: 'Hack Squat', sets: 3, reps: '4, 6, 8', muscle: 'Quads' },
-          { name: 'Bent-Over Cable Pec Flye', sets: 3, reps: '10–12', muscle: 'Chest' },
-          { name: 'Neutral-Grip Lat Pulldown', sets: 2, reps: '12–15', muscle: 'Back' },
-          { name: 'Leg Press Calf Press', sets: 3, reps: '10–12', muscle: 'Calves' },
-          { name: 'Cable Reverse Flye (Mechanical Dropset)', sets: 3, reps: '5, 4, 3+', muscle: 'Shoulders' },
-        ],
-      },
-      {
-        name: 'Arms & Weak Points',
-        exercises: [
-          { name: 'Weak Point Exercise #1', sets: 3, reps: '8–12', muscle: 'Weak Point' },
-          { name: 'Weak Point Exercise #2 (optional)', sets: 2, reps: '8–12', muscle: 'Weak Point' },
-          { name: 'Bayesian Cable Curl', sets: 3, reps: '10–12', muscle: 'Biceps' },
-          { name: 'Triceps Pressdown (Bar)', sets: 3, reps: '8', muscle: 'Triceps' },
-          { name: 'Bottom-2/3 Constant Tension Preacher Curl', sets: 2, reps: '12–15', muscle: 'Biceps' },
-          { name: 'Cable Triceps Kickback', sets: 2, reps: '12–15', muscle: 'Triceps' },
-          { name: 'Standing Calf Raise', sets: 3, reps: '12–15', muscle: 'Calves' },
+          { name: 'Squat (heavy wk: 4×4 @80% · light wk: 3×6 @75%)', sets: 4, reps: '4 / 6', muscle: 'Quads' },
+          { name: 'Incline Dumbbell Press', sets: 3, reps: '8', muscle: 'Chest' },
+          { name: 'Lying Leg Curl', sets: 3, reps: '10', muscle: 'Hamstrings' },
+          { name: 'Lat Pulldown', sets: 3, reps: '10', muscle: 'Back' },
+          { name: 'EZ-Bar Biceps Curl (drop set, to failure)', sets: 3, reps: '12 + 12 drop', muscle: 'Biceps' },
+          { name: 'Hanging Leg Raise', sets: 3, reps: '12', muscle: 'Core' },
         ],
       },
     ],

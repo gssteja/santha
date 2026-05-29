@@ -101,7 +101,7 @@ export default function WorkoutScreen() {
           <View style={styles.headerStats}>
             <Text style={styles.timer}>{fmtTime(elapsed)}</Text>
             {activeVolume > 0 && (
-              <Text style={styles.volume}>{activeVolume.toLocaleString()} kg</Text>
+              <Text style={styles.volume}>{activeVolume.toLocaleString()} lb</Text>
             )}
           </View>
         </View>

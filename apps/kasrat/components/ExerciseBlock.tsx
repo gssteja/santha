@@ -72,7 +72,7 @@ export function ExerciseBlock({
           </View>
           <Text style={s.muscle}>{exercise.muscle}</Text>
           {exerciseVolume > 0 && (
-            <Text style={s.volText}>{exerciseVolume.toLocaleString()} kg volume</Text>
+            <Text style={s.volText}>{exerciseVolume.toLocaleString()} lb volume</Text>
           )}
         </View>
         <View style={s.headerActions}>
@@ -111,7 +111,7 @@ export function ExerciseBlock({
       <View style={s.colHeader}>
         <Text style={[s.colText, s.colSet]}>Set</Text>
         <Text style={[s.colText, s.colPrev]}>Previous</Text>
-        <Text style={[s.colText, s.colInput]}>kg</Text>
+        <Text style={[s.colText, s.colInput]}>lb</Text>
         <Text style={[s.colText, s.colInput]}>Reps</Text>
         <Text style={[s.colText, s.colLog]}></Text>
       </View>
