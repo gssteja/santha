@@ -111,8 +111,10 @@ export function isHeavyWeek(week: number): boolean {
 }
 
 // A waved exercise encodes "heavy / light" in its reps field, e.g. "4 / 6".
+// Only treat a bare "N / M" (both numeric) as a wave — NOT per-side notation
+// like "15 / side" or "12 / side", which would otherwise resolve to "side" → blank.
 export function isWaved(reps: string): boolean {
-  return reps.includes('/');
+  return /^\s*\d+\s*\/\s*\d+\s*$/.test(reps);
 }
 
 // Resolve a (possibly waved) reps string to the target for the given week.
