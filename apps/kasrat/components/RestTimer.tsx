@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
+  AppState,
   Easing,
   Modal,
   StyleSheet,
@@ -40,37 +41,47 @@ function fmt(secs: number): string {
 export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) {
   const [remaining, setRemaining] = useState(seconds);
   const [target, setTarget] = useState(seconds);
+  // Absolute wall-clock end time. Driving off this (not a decrementing counter) keeps
+  // the timer accurate across app backgrounding / screen-off, where JS timers throttle.
+  const endAtRef = useRef(0);
+  const targetRef = useRef(seconds);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const opacity = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(1)).current; // 1 → 0
 
   function runProgress(from: number, total: number) {
-    progress.setValue(from / total);
+    progress.setValue(total > 0 ? from / total : 0);
     Animated.timing(progress, {
       toValue: 0,
-      duration: from * 1000,
+      duration: Math.max(0, from) * 1000,
       easing: Easing.linear,
       useNativeDriver: false,
     }).start();
   }
 
+  function secsLeft(): number {
+    return Math.max(0, Math.round((endAtRef.current - Date.now()) / 1000));
+  }
+
+  function tick() {
+    const left = secsLeft();
+    setRemaining(left);
+    if (left <= 0) {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+      Vibration.vibrate(400);
+      onDismiss();
+    }
+  }
+
   useEffect(() => {
     if (visible) {
+      endAtRef.current = Date.now() + seconds * 1000;
+      targetRef.current = seconds;
       setTarget(seconds);
       setRemaining(seconds);
       Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
       runProgress(seconds, seconds);
-      intervalRef.current = setInterval(() => {
-        setRemaining(r => {
-          if (r <= 1) {
-            clearInterval(intervalRef.current!);
-            Vibration.vibrate(400);
-            onDismiss();
-            return 0;
-          }
-          return r - 1;
-        });
-      }, 1000);
+      intervalRef.current = setInterval(tick, 250);
     } else {
       Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start();
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -78,16 +89,28 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
+  }, [visible, seconds]);
+
+  // Re-sync the moment the app returns to foreground (catches the count up to wall clock,
+  // re-runs the bar from the corrected position, and fires completion if it elapsed away).
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active' && visible) {
+        runProgress(secsLeft(), targetRef.current);
+        tick();
+      }
+    });
+    return () => sub.remove();
   }, [visible]);
 
   function addTime(s: number) {
-    setRemaining(r => {
-      const next = Math.max(0, r + s);
-      const total = Math.max(next, target);
-      setTarget(total);
-      runProgress(next, total);
-      return next;
-    });
+    endAtRef.current += s * 1000;
+    const next = secsLeft();
+    const total = Math.max(next, targetRef.current);
+    targetRef.current = total;
+    setTarget(total);
+    setRemaining(next);
+    runProgress(next, total);
   }
 
   const widthPct = progress.interpolate({
