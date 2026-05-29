@@ -58,7 +58,13 @@ export function AppCard({ app }: { app: StoreApp }) {
           </Text>
         )}
         <Text style={styles.meta}>
-          {isApk ? `APK · ${formatSize(app.size)}` : 'Web app'}
+          {[
+            isApk ? 'APK' : 'Web app',
+            app.version ? `v${app.version}` : null,
+            isApk ? formatSize(app.size) : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
         </Text>
       </View>
 

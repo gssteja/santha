@@ -7,7 +7,7 @@ apps/kasrat/node_modules/
 # Heavy/generated/secret bits inside it are ignored via apps/kasrat/android/.gitignore.
 apps/kasrat/.expo/
 apps/kasrat/dist/
-apps/santha/android/
+# apps/santha/android/ is COMMITTED too (same RN bare-workflow reason as kasrat).
 apps/santha/.expo/
 apps/santha/dist/
 
