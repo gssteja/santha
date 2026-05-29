@@ -157,7 +157,10 @@ app.delete('/api/apps/:id', requireApiKey, (req, res) => {
   res.json({ ok: true });
 });
 
-app.listen(PORT, () => {
-  console.log(`Santha AppStore running on port ${PORT}`);
+// Bind localhost by default — fronted by Caddy (HTTPS) which proxies to 127.0.0.1:3000.
+// Set HOST=0.0.0.0 to expose directly (not recommended in prod).
+const HOST = process.env.HOST || '127.0.0.1';
+app.listen(PORT, HOST, () => {
+  console.log(`Santha AppStore running on ${HOST}:${PORT}`);
   if (!API_KEY) console.warn('WARNING: SANTHA_API_KEY not set — deploy endpoint is locked out');
 });
