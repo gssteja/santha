@@ -3,7 +3,8 @@ node_modules/
 apps/kasrat/node_modules/
 
 # build output
-apps/kasrat/android/
+# NOTE: apps/kasrat/android/ is COMMITTED (RN bare workflow) so CI can build without expo prebuild.
+# Heavy/generated/secret bits inside it are ignored via apps/kasrat/android/.gitignore.
 apps/kasrat/.expo/
 apps/kasrat/dist/
 apps/santha/android/

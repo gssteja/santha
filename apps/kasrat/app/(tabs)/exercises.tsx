@@ -58,7 +58,7 @@ export default function ExercisesScreen() {
             </View>
           )}
           ListEmptyComponent={
-            <Text style={styles.empty}>Nothing. Try a different search.</Text>
+            <Text style={styles.empty}>No matches.</Text>
           }
         />
       ) : (

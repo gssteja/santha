@@ -11,7 +11,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExerciseBlock } from '@/components/ExerciseBlock';
 import { ExercisePicker } from '@/components/ExercisePicker';
-import { RestTimer } from '@/components/RestTimer';
+import { RestTimer, restForExercise } from '@/components/RestTimer';
 import { useStore } from '@/store/StoreContext';
 import { makeExerciseBlock } from '@/store/workoutStore';
 import type { Exercise } from '@/types';
@@ -45,6 +45,8 @@ export default function WorkoutScreen() {
   const [elapsed, setElapsed] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
   const [restVisible, setRestVisible] = useState(false);
+  const [restSeconds, setRestSeconds] = useState(90);
+  const [restExercise, setRestExercise] = useState<string | undefined>();
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
@@ -62,9 +64,15 @@ export default function WorkoutScreen() {
   }
 
   function handleToggleSet(exIdx: number, setIdx: number) {
-    const set = activeWorkout!.exercises[exIdx].sets[setIdx];
+    const ex = activeWorkout!.exercises[exIdx];
+    const set = ex.sets[setIdx];
     toggleSet(exIdx, setIdx);
-    if (!set.done) setRestVisible(true); // show rest only when marking done
+    if (!set.done) {
+      // show rest only when marking done; auto-set duration per exercise
+      setRestSeconds(restForExercise(ex.name, ex.muscle));
+      setRestExercise(ex.name);
+      setRestVisible(true);
+    }
   }
 
   function handleFinish() {
@@ -150,7 +158,8 @@ export default function WorkoutScreen() {
 
       <RestTimer
         visible={restVisible}
-        initialSeconds={90}
+        seconds={restSeconds}
+        exerciseName={restExercise}
         onDismiss={() => setRestVisible(false)}
       />
 

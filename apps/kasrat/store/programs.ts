@@ -104,3 +104,27 @@ export const PROGRAMS: Program[] = [
 export function getProgram(id: string): Program | undefined {
   return PROGRAMS.find(p => p.id === id);
 }
+
+// Weekly undulating wave: odd weeks are heavy (low rep), even weeks are light (higher rep).
+export function isHeavyWeek(week: number): boolean {
+  return week % 2 === 1;
+}
+
+// A waved exercise encodes "heavy / light" in its reps field, e.g. "4 / 6".
+export function isWaved(reps: string): boolean {
+  return reps.includes('/');
+}
+
+// Resolve a (possibly waved) reps string to the target for the given week.
+export function resolveReps(reps: string, week: number): string {
+  if (!isWaved(reps)) return reps;
+  const [heavy, light] = reps.split('/').map(s => s.trim());
+  return isHeavyWeek(week) ? heavy : light;
+}
+
+// First integer of a resolved reps string, for prefilling the numeric reps input.
+// "12–15"→"12", "12 + 12 drop"→"12", "15 / side"→"15", "Max"→"" (no number).
+export function repsToInput(reps: string, week: number): string {
+  const m = resolveReps(reps, week).match(/\d+/);
+  return m ? m[0] : '';
+}

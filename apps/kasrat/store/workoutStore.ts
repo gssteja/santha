@@ -1,21 +1,30 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { SERVER_URL } from '@/constants/config';
+import { PROGRAMS } from '@/store/programs';
 import type { ActiveWorkout, WorkoutExercise, WorkoutRecord, WorkoutSet } from '@/types';
 
 const STORAGE_KEY = 'kasrat_v1';
 
+// Single active program; rotation tracks where we are in its day cycle.
+const ACTIVE_PROGRAM = PROGRAMS[0];
+
+export type ProgramProgress = { dayIndex: number; week: number };
+
 type State = {
   activeWorkout: ActiveWorkout | null;
   history: WorkoutRecord[];
+  program: ProgramProgress;
   loaded: boolean;
   syncing: boolean;
+  lastSyncedAt: number | null;
 };
 
 type Action =
-  | { type: 'LOAD'; payload: Omit<State, 'loaded' | 'syncing'> }
+  | { type: 'LOAD'; payload: Pick<State, 'activeWorkout' | 'history'> & { program?: ProgramProgress } }
   | { type: 'MERGE_SERVER'; records: WorkoutRecord[] }
   | { type: 'SET_SYNCING'; value: boolean }
+  | { type: 'SYNCED'; at: number }
   | { type: 'START_WORKOUT'; name: string }
   | { type: 'ADD_EXERCISE'; exercise: WorkoutExercise }
   | { type: 'REMOVE_EXERCISE'; exIdx: number }
@@ -34,7 +43,13 @@ function defaultSet(): WorkoutSet {
 function reducer(state: State, action: Action): State {
   switch (action.type) {
     case 'LOAD':
-      return { ...state, ...action.payload, loaded: true };
+      return {
+        ...state,
+        activeWorkout: action.payload.activeWorkout,
+        history: action.payload.history,
+        program: action.payload.program ?? state.program,
+        loaded: true,
+      };
 
     case 'MERGE_SERVER': {
       const byId = new Map(state.history.map(r => [r.id, r]));
@@ -49,6 +64,9 @@ function reducer(state: State, action: Action): State {
 
     case 'SET_SYNCING':
       return { ...state, syncing: action.value };
+
+    case 'SYNCED':
+      return { ...state, syncing: false, lastSyncedAt: action.at };
 
     case 'START_WORKOUT':
       return {
@@ -169,7 +187,16 @@ function reducer(state: State, action: Action): State {
           sets: e.sets.filter(s => s.done),
         })),
       };
-      return { ...state, activeWorkout: null, history: [record, ...state.history] };
+      // If this workout was the suggested program day, advance the rotation.
+      let program = state.program;
+      const suggested = ACTIVE_PROGRAM?.days[state.program.dayIndex];
+      if (suggested && w.name === suggested.name) {
+        const dayCount = ACTIVE_PROGRAM.days.length;
+        const nextIndex = (state.program.dayIndex + 1) % dayCount;
+        const week = nextIndex === 0 ? state.program.week + 1 : state.program.week;
+        program = { dayIndex: nextIndex, week };
+      }
+      return { ...state, activeWorkout: null, history: [record, ...state.history], program };
     }
 
     case 'DISCARD_WORKOUT':
@@ -180,17 +207,26 @@ function reducer(state: State, action: Action): State {
   }
 }
 
-const INITIAL: State = { activeWorkout: null, history: [], loaded: false, syncing: false };
+const INITIAL: State = {
+  activeWorkout: null,
+  history: [],
+  program: { dayIndex: 0, week: 1 },
+  loaded: false,
+  syncing: false,
+  lastSyncedAt: null,
+};
 
-async function syncToServer(records: WorkoutRecord[]) {
+async function syncToServer(records: WorkoutRecord[]): Promise<boolean> {
   try {
-    await fetch(`${SERVER_URL}/api/workouts/sync`, {
+    const res = await fetch(`${SERVER_URL}/api/workouts/sync`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(records),
     });
+    return res.ok;
   } catch {
     // Silently fail — local data is source of truth
+    return false;
   }
 }
 
@@ -210,17 +246,23 @@ export function useWorkoutStore() {
   // Load local, then merge server
   useEffect(() => {
     AsyncStorage.getItem(STORAGE_KEY).then(async raw => {
-      let local = { activeWorkout: null as ActiveWorkout | null, history: [] as WorkoutRecord[] };
+      let local: {
+        activeWorkout: ActiveWorkout | null;
+        history: WorkoutRecord[];
+        program?: ProgramProgress;
+      } = { activeWorkout: null, history: [] };
       if (raw) {
         try { local = JSON.parse(raw); } catch {}
       }
       dispatch({ type: 'LOAD', payload: local });
 
       // Merge server records in background
+      dispatch({ type: 'SET_SYNCING', value: true });
       const serverRecords = await fetchFromServer();
       if (serverRecords.length > 0) {
         dispatch({ type: 'MERGE_SERVER', records: serverRecords });
       }
+      dispatch({ type: 'SYNCED', at: Date.now() });
     });
   }, []);
 
@@ -229,9 +271,13 @@ export function useWorkoutStore() {
     if (!state.loaded) return;
     AsyncStorage.setItem(
       STORAGE_KEY,
-      JSON.stringify({ activeWorkout: state.activeWorkout, history: state.history })
+      JSON.stringify({
+        activeWorkout: state.activeWorkout,
+        history: state.history,
+        program: state.program,
+      })
     );
-  }, [state.activeWorkout, state.history, state.loaded]);
+  }, [state.activeWorkout, state.history, state.program, state.loaded]);
 
   // Previous performance lookup: find last logged sets for an exercise by name
   const getPreviousSets = useCallback(
@@ -308,15 +354,19 @@ export function useWorkoutStore() {
 
   const finishWorkout = useCallback(() => {
     dispatch({ type: 'FINISH_WORKOUT' });
+    dispatch({ type: 'SET_SYNCING', value: true });
     // Sync after finish — read updated state via setTimeout to get new record
     setTimeout(() => {
-      AsyncStorage.getItem(STORAGE_KEY).then(raw => {
+      AsyncStorage.getItem(STORAGE_KEY).then(async raw => {
+        let ok = false;
         if (raw) {
           try {
             const { history } = JSON.parse(raw);
-            syncToServer(history);
+            ok = await syncToServer(history);
           } catch {}
         }
+        // Stamp sync time on success; just clear the spinner on failure (local stays source of truth).
+        dispatch(ok ? { type: 'SYNCED', at: Date.now() } : { type: 'SET_SYNCING', value: false });
       });
     }, 100);
   }, []);
@@ -343,4 +393,24 @@ export function useWorkoutStore() {
 
 export function makeExerciseBlock(exId: string, name: string, muscle: string): WorkoutExercise {
   return { exId, name, muscle, sets: [defaultSet(), defaultSet(), defaultSet()] };
+}
+
+// Build a block from a program prescription: `setCount` sets, each prefilled with the
+// target `reps`. Weight is prefilled from the last logged session (`prevSets`) when known
+// — the program only prescribes %1RM, not absolute load, so there's nothing else to fill.
+export function makeProgramExerciseBlock(
+  exId: string,
+  name: string,
+  muscle: string,
+  setCount: number,
+  reps: string,
+  prevSets?: WorkoutSet[],
+): WorkoutExercise {
+  const n = Math.max(1, setCount);
+  const sets: WorkoutSet[] = Array.from({ length: n }, (_, i) => ({
+    weight: prevSets?.[i]?.weight ?? prevSets?.[0]?.weight ?? '',
+    reps,
+    done: false,
+  }));
+  return { exId, name, muscle, sets };
 }

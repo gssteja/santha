@@ -105,7 +105,7 @@ export default function ProgramsScreen() {
                             style={styles.startBtn}
                             onPress={() => handleStartDay(program.id, day.name, day.exercises)}
                           >
-                            <Text style={styles.startBtnText}>Start this. Finally.</Text>
+                            <Text style={styles.startBtnText}>Start</Text>
                           </TouchableOpacity>
                         </View>
                       )}
