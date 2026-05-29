@@ -55,7 +55,7 @@ export function RestTimer({ visible, initialSeconds = 90, onDismiss }: Props) {
     <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
       <Animated.View style={[s.overlay, { opacity }]}>
         <View style={s.card}>
-          <Text style={s.label}>Ruk.</Text>
+          <Text style={s.label}>Aagannu.</Text>
           <View style={s.circle}>
             <Text style={s.countdown}>{display}</Text>
           </View>
@@ -67,7 +67,7 @@ export function RestTimer({ visible, initialSeconds = 90, onDismiss }: Props) {
               <Text style={s.btnText}>+30s</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.btn, s.skipBtn]} onPress={onDismiss}>
-              <Text style={[s.btnText, s.skipText]}>Bas</Text>
+              <Text style={[s.btnText, s.skipText]}>Chaalu</Text>
             </TouchableOpacity>
           </View>
         </View>

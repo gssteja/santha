@@ -6,12 +6,16 @@
     "orientation": "portrait",
     "scheme": "kasrat",
     "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
     "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
       "backgroundColor": "#0d0d10"
     },
     "android": {
       "package": "com.santha.kasrat",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#0d0d10"
       }
     },

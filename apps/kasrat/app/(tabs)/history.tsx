@@ -30,7 +30,7 @@ export default function HistoryScreen() {
       </View>
 
       {history.length === 0 ? (
-        <Text style={styles.empty}>Nothing here.{'\n'}Kal se toh sab bolte hain.</Text>
+        <Text style={styles.empty}>Emee ledu.{'\n'}Repu nunchi ani andaru antaaru.</Text>
       ) : (
         history.map(w => (
           <View key={w.id} style={styles.card}>
