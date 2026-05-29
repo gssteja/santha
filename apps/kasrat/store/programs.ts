@@ -39,7 +39,7 @@ export const PROGRAMS: Program[] = [
     description: 'Five full-body days a week, each with a different focus. Heavy compounds (squat, bench) wave weekly — a heavy low-rep week alternates with a lighter higher-rep week, adding load on the heavy weeks. Leave reps in reserve on compounds; push isolation work harder.',
     days: [
       {
-        name: 'Day 1 — Leg Focus',
+        name: 'Day 1 — Legs (Squat)',
         exercises: [
           { name: 'Squat (heavy wk: 4×4 @80% · light wk: 3×6 @75%)', sets: 4, reps: '4 / 6', muscle: 'Quads', note: 'Leave 2–3 reps in the tank — never to failure on heavy compounds (protects the next day). Squat to at least parallel. Cue: screw feet into the floor for a stable base.' },
           { name: 'Incline Dumbbell Press', sets: 3, reps: '8', muscle: 'Chest', note: 'Elbows tucked; bring the dumbbells down & forward, press up & back toward your face for more upper pec.' },
@@ -50,7 +50,7 @@ export const PROGRAMS: Program[] = [
         ],
       },
       {
-        name: 'Day 2 — Chest Focus',
+        name: 'Day 2 — Chest',
         exercises: [
           { name: 'Bench Press (heavy wk: 3×3 @85% · light wk: 3×5)', sets: 3, reps: '3 / 5', muscle: 'Chest', note: 'Heavy but not max — external cues over mind-muscle. Squeeze the bar, bend it to tuck elbows, puff the chest, press up & back.' },
           { name: 'Low-to-High Cable Flye', sets: 3, reps: '15', muscle: 'Chest', note: 'Isolation — push near failure (RPE 9). "Hug a tall tree"; palms up at the bottom, down at the top.' },
@@ -62,7 +62,7 @@ export const PROGRAMS: Program[] = [
         ],
       },
       {
-        name: 'Day 3 — Back Focus',
+        name: 'Day 3 — Back',
         exercises: [
           { name: 'Weighted Pull-Up', sets: 3, reps: '6', muscle: 'Back', note: '3rd back day — warm up thoroughly (RPE 8). Even tempo: rep 6 should look like rep 1; drop weight if form breaks. Stretch lats 20–30s between sets.' },
           { name: 'Bent-Over Row', sets: 3, reps: '10', muscle: 'Back', note: 'Execution over weight — limit momentum, no swinging. Set torso ~parallel to the floor.' },
@@ -73,7 +73,7 @@ export const PROGRAMS: Program[] = [
         ],
       },
       {
-        name: 'Day 4 — Leg Focus (Volume)',
+        name: 'Day 4 — Legs (Deadlift)',
         exercises: [
           { name: 'Reset Deadlift (wk A: 3×5 @75% · wk B: 3×2 heavy)', sets: 3, reps: '5 / 2', muscle: 'Hamstrings', note: 'Full dead stop & reset on the floor every rep — no bounce/momentum. Sumo favored here (more quad, less lower back) or pick your stronger stance. Cue lats by pulling the bar toward your shins. Linear load increase each week per rep scheme.' },
           { name: 'Weighted Dip', sets: 3, reps: '8', muscle: 'Chest', note: 'Shoulder blades retracted & depressed; ~90° elbow bend. Lean ~30° forward and drive your hands down like a press — hits the whole pec, not just lower.' },
@@ -85,7 +85,7 @@ export const PROGRAMS: Program[] = [
         ],
       },
       {
-        name: 'Day 5 — Delt Focus',
+        name: 'Day 5 — Shoulders',
         exercises: [
           { name: 'Barbell Overhead Press (3×6 → +1 set/wk → 5×6, then +load)', sets: 3, reps: '6', muscle: 'Shoulders', note: 'Progression: 3×6, add a set each week to 5×6 by week 3, then week 4 drop back to 3×6 with more weight. Push through the outside of your hands (cues abduction); elbows ~45° tucked at the bottom, flare as the bar clears your face. Dumbbells fine if comfier.' },
           { name: 'Dumbbell Lateral Raise', sets: 3, reps: '15', muscle: 'Shoulders', note: 'Contracted-position loading = low muscle damage, so push close to failure. (Day 4 used the stretch-loaded cable version — alternated on purpose.)' },
