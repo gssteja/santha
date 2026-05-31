@@ -1,0 +1,100 @@
+name: Build & deploy app
+
+# Generic build+publish for ANY app under apps/<id>/. One workflow, one shared release
+# keystore — adding a new app needs no new workflow and no new secret.
+#
+# Trigger: the "Run workflow" button (pick app + version), or push a tag `<id>-v<version>`
+# (e.g. kasrat-v1.0.8). The id is the apps/<id> folder; the version becomes the store version.
+# Each app supplies its store metadata in apps/<id>/store.json.
+on:
+  workflow_dispatch:
+    inputs:
+      app:
+        description: 'App id (folder under apps/)'
+        required: true
+      version:
+        description: 'Store version (e.g. 1.0.8)'
+        required: true
+  push:
+    tags:
+      - '*-v*'
+
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve app + version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            APP="${{ inputs.app }}"; V="${{ inputs.version }}"
+          else
+            REF="$GITHUB_REF_NAME"   # e.g. kasrat-v1.0.8
+            APP="${REF%-v*}"; V="${REF##*-v}"
+          fi
+          if [ ! -d "apps/$APP" ]; then echo "::error::apps/$APP not found"; exit 1; fi
+          echo "APP=$APP" >> "$GITHUB_ENV"
+          echo "V=$V" >> "$GITHUB_ENV"
+          echo "Building $APP $V"
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: apps/**/package-lock.json
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install JS deps
+        run: cd "apps/$APP" && npm ci
+
+      - name: Install NDK 30
+        run: |
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKM" --licenses >/dev/null 2>&1 || true
+          "$SDKM" --install "ndk;30.0.14904198"
+
+      - name: Build release APK
+        env:
+          UPLOAD_STORE_PASSWORD: ${{ secrets.RELEASE_KEYSTORE_PASSWORD }}
+          UPLOAD_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
+          UPLOAD_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
+          EXPO_PUBLIC_STORE_KEY: ${{ secrets.EXPO_PUBLIC_STORE_KEY }}
+        run: |
+          echo "${{ secrets.RELEASE_KEYSTORE_BASE64 }}" | base64 -d > "apps/$APP/android/app/release.keystore"
+          chmod +x "apps/$APP/android/gradlew"
+          # Fresh node_modules (npm ci) lack per-library codegen JNI dirs; generate them
+          # first or the CMake configure step fails with "...codegen/jni not an existing directory".
+          ( cd "apps/$APP/android" && ./gradlew generateCodegenArtifactsFromSchema --no-daemon )
+          ( cd "apps/$APP/android" && ./gradlew assembleRelease --no-daemon \
+              -PUPLOAD_STORE_FILE=release.keystore \
+              -PUPLOAD_STORE_PASSWORD="$UPLOAD_STORE_PASSWORD" \
+              -PUPLOAD_KEY_ALIAS="$UPLOAD_KEY_ALIAS" \
+              -PUPLOAD_KEY_PASSWORD="$UPLOAD_KEY_PASSWORD" )
+
+      - name: Publish to store
+        run: |
+          APK="apps/$APP/android/app/build/outputs/apk/release/app-release.apk"
+          ls -la "$APK"
+          # Build meta from apps/<id>/store.json + inject id/version/type.
+          META=$(node -e 'const m=require("./apps/"+process.env.APP+"/store.json");m.id=process.env.APP;m.version=process.env.V;m.type=m.type||"apk";process.stdout.write(JSON.stringify(m))')
+          curl -fsS -X POST "https://santha.t3ja.com/api/apk/$APP" \
+            -H "x-api-key: ${{ secrets.SANTHA_API_KEY }}" \
+            -F apk=@"$APK" \
+            -F "meta=$META"
+          echo "✓ Deployed $APP $V"
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APP }}-${{ env.V }}-apk
+          path: apps/${{ env.APP }}/android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: error
