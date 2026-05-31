@@ -28,6 +28,8 @@ export type ActiveWorkout = {
   name: string;
   startTime: number;
   exercises: WorkoutExercise[];
+  /** Program week this session belongs to (carried from the history-derived "next up"). */
+  week?: number;
 };
 
 export type WorkoutRecord = {

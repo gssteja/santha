@@ -1,5 +1,5 @@
 import { useRouter } from 'expo-router';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ScrollView,
   StyleSheet,
@@ -42,7 +42,7 @@ function fmtAgo(ts: number) {
 export default function TodayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { activeWorkout, history, program, startWorkout, addExercise, getPhaseSets, syncing, lastSyncedAt } = useStore();
+  const { activeWorkout, history, startWorkout, addExercise, getPhaseSets, syncing, lastSyncedAt } = useStore();
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -59,25 +59,42 @@ export default function TodayScreen() {
   }, [activeWorkout?.id]);
 
   const activeProgram = PROGRAMS[0];
-  const nextDay = activeProgram?.days[program.dayIndex];
-  const heavy = isHeavyWeek(program.week);
+
+  // Derive the next program day from logged history (not a local pointer that's lost on
+  // reinstall): find the most recent workout matching a program day, suggest the next one.
+  const { dayIndex, week } = useMemo(() => {
+    const days = activeProgram?.days ?? [];
+    if (!days.length) return { dayIndex: 0, week: 1 };
+    for (const rec of history) {
+      const idx = days.findIndex(d => d.name === rec.name);
+      if (idx >= 0) {
+        const lastWeek = rec.week ?? 1;
+        const nextIdx = (idx + 1) % days.length;
+        return { dayIndex: nextIdx, week: nextIdx === 0 ? lastWeek + 1 : lastWeek };
+      }
+    }
+    return { dayIndex: 0, week: 1 };
+  }, [history, activeProgram]);
+
+  const nextDay = activeProgram?.days[dayIndex];
+  const heavy = isHeavyWeek(week);
 
   function handleStartNextDay() {
     if (!nextDay) return handleStart();
-    startWorkout(nextDay.name);
+    startWorkout(nextDay.name, week);
     for (const ex of nextDay.exercises) {
       const waved = isWaved(ex.reps);
       const perSide = !!ex.perSide || /\/\s*side/i.test(ex.reps);
-      const target = `${ex.sets}×${resolveReps(ex.reps, program.week)}`;
-      const drops = ex.dropSet ? repSequence(ex.reps, program.week).slice(1) : [];
+      const target = `${ex.sets}×${resolveReps(ex.reps, week)}`;
+      const drops = ex.dropSet ? repSequence(ex.reps, week).slice(1) : [];
       addExercise(
         makeProgramExerciseBlock(
           slugify(ex.name),
           ex.name,
           ex.muscle ?? '',
           ex.sets,
-          repsToInput(ex.reps, program.week),
-          getPhaseSets(ex.name, program.week, waved),
+          repsToInput(ex.reps, week),
+          getPhaseSets(ex.name, week, waved),
           { perSide, target, waved, heavy: waved && heavy, note: ex.note, drops },
         ),
       );
@@ -131,7 +148,7 @@ export default function TodayScreen() {
             <View style={styles.nextHeader}>
               <Text style={styles.nextLabel}>Next up</Text>
               <Text style={styles.weekChip}>
-                Week {program.week} · {heavy ? 'Heavy' : 'Light'}
+                Week {week} · {heavy ? 'Heavy' : 'Light'}
               </Text>
             </View>
           )}
@@ -146,7 +163,7 @@ export default function TodayScreen() {
                       <Text style={styles.waveTag}>{heavy ? 'HEAVY' : 'LIGHT'}</Text>
                     )}
                     <Text style={styles.exSetsReps}>
-                      {ex.sets}×{resolveReps(ex.reps, program.week)}
+                      {ex.sets}×{resolveReps(ex.reps, week)}
                     </Text>
                   </View>
                 </View>

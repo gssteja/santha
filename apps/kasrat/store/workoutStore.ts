@@ -25,7 +25,7 @@ type Action =
   | { type: 'MERGE_SERVER'; records: WorkoutRecord[] }
   | { type: 'SET_SYNCING'; value: boolean }
   | { type: 'SYNCED'; at: number }
-  | { type: 'START_WORKOUT'; name: string }
+  | { type: 'START_WORKOUT'; name: string; week?: number }
   | { type: 'ADD_EXERCISE'; exercise: WorkoutExercise }
   | { type: 'REMOVE_EXERCISE'; exIdx: number }
   | { type: 'SWAP_EXERCISE'; exIdx: number; newName: string }
@@ -77,6 +77,7 @@ function reducer(state: State, action: Action): State {
           name: action.name,
           startTime: Date.now(),
           exercises: [],
+          week: action.week,
         },
       };
 
@@ -199,7 +200,7 @@ function reducer(state: State, action: Action): State {
         duration,
         sets: completedSets.length,
         volume: Math.round(volume),
-        week: state.program.week,
+        week: w.week ?? state.program.week,
         exercises: w.exercises.map(e => e.name),
         exerciseData: w.exercises.map(e => ({
           name: e.name,
@@ -370,7 +371,10 @@ export function useWorkoutStore() {
     [getPreviousSets]
   );
 
-  const startWorkout = useCallback((name: string) => dispatch({ type: 'START_WORKOUT', name }), []);
+  const startWorkout = useCallback(
+    (name: string, week?: number) => dispatch({ type: 'START_WORKOUT', name, week }),
+    []
+  );
 
   const addExercise = useCallback(
     (exercise: WorkoutExercise) => dispatch({ type: 'ADD_EXERCISE', exercise }),
