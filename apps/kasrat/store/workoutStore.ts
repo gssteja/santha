@@ -252,15 +252,21 @@ async function syncToServer(records: WorkoutRecord[]): Promise<boolean> {
 }
 
 async function fetchFromServer(): Promise<WorkoutRecord[]> {
+  // NB: AbortSignal.timeout() is NOT available in Hermes (RN 0.79) — it throws and the
+  // whole fetch silently fails (no history loads on a fresh install). Use AbortController.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 8000);
   try {
     const res = await fetch(`${SERVER_URL}/api/workouts`, {
       headers: { 'x-api-key': STORE_KEY },
-      signal: AbortSignal.timeout(5000),
+      signal: controller.signal,
     });
     if (!res.ok) return [];
     return await res.json();
   } catch {
     return [];
+  } finally {
+    clearTimeout(timer);
   }
 }
 
