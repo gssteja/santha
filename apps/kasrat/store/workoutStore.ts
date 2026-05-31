@@ -30,7 +30,7 @@ type Action =
   | { type: 'REMOVE_EXERCISE'; exIdx: number }
   | { type: 'SWAP_EXERCISE'; exIdx: number; newName: string }
   | { type: 'ADD_SET'; exIdx: number }
-  | { type: 'ADD_DROP_SET'; exIdx: number }
+  | { type: 'ADD_DROP_SET'; exIdx: number; afterIdx: number }
   | { type: 'REMOVE_SET'; exIdx: number; setIdx: number }
   | { type: 'UPDATE_SET'; exIdx: number; setIdx: number; field: 'weight' | 'reps'; value: string }
   | { type: 'TOGGLE_SET'; exIdx: number; setIdx: number }
@@ -132,12 +132,12 @@ function reducer(state: State, action: Action): State {
       if (!state.activeWorkout) return state;
       const exercises = state.activeWorkout.exercises.map((ex, i) => {
         if (i !== action.exIdx) return ex;
-        const last = ex.sets[ex.sets.length - 1];
-        // drop set: start from the last weight (you'll lower it), reps blank, no rest
-        return {
-          ...ex,
-          sets: [...ex.sets, { weight: last?.weight ?? '', reps: '', done: false, drop: true }],
-        };
+        const src = ex.sets[action.afterIdx];
+        // drop set: seed from the chosen set's weight (you'll lower it), reps blank, no rest
+        const dropSet = { weight: src?.weight ?? '', reps: '', done: false, drop: true };
+        const sets = [...ex.sets];
+        sets.splice(action.afterIdx + 1, 0, dropSet);
+        return { ...ex, sets };
       });
       return { ...state, activeWorkout: { ...state.activeWorkout, exercises } };
     }
@@ -383,7 +383,10 @@ export function useWorkoutStore() {
 
   const addSet = useCallback((exIdx: number) => dispatch({ type: 'ADD_SET', exIdx }), []);
 
-  const addDropSet = useCallback((exIdx: number) => dispatch({ type: 'ADD_DROP_SET', exIdx }), []);
+  const addDropSet = useCallback(
+    (exIdx: number, afterIdx: number) => dispatch({ type: 'ADD_DROP_SET', exIdx, afterIdx }),
+    []
+  );
 
   const removeSet = useCallback(
     (exIdx: number, setIdx: number) => dispatch({ type: 'REMOVE_SET', exIdx, setIdx }),

@@ -145,7 +145,7 @@ export default function WorkoutScreen() {
               previousSets={getPreviousSets(ex.name)}
               isOverload={isProgressiveOverload(ex.name, ex.sets)}
               onAddSet={() => addSet(ei)}
-              onAddDropSet={() => addDropSet(ei)}
+              onAddDropAfter={si => addDropSet(ei, si)}
               onRemoveSet={si => removeSet(ei, si)}
               onUpdateSet={(si, field, val) => updateSet(ei, si, field, val)}
               onToggleSet={si => handleToggleSet(ei, si)}

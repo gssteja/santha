@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import {
   Alert,
+  Modal,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
@@ -16,7 +18,7 @@ type Props = {
   previousSets: WorkoutSet[];
   isOverload: boolean;
   onAddSet: () => void;
-  onAddDropSet: () => void;
+  onAddDropAfter: (setIdx: number) => void;
   onRemoveSet: (setIdx: number) => void;
   onUpdateSet: (setIdx: number, field: 'weight' | 'reps', value: string) => void;
   onToggleSet: (setIdx: number) => void;
@@ -30,7 +32,7 @@ export function ExerciseBlock({
   previousSets,
   isOverload,
   onAddSet,
-  onAddDropSet,
+  onAddDropAfter,
   onRemoveSet,
   onUpdateSet,
   onToggleSet,
@@ -39,6 +41,7 @@ export function ExerciseBlock({
 }: Props) {
   const [swapping, setSwapping] = useState(false);
   const [swapName, setSwapName] = useState('');
+  const [menuSet, setMenuSet] = useState<number | null>(null); // set index whose action menu is open
 
   const exerciseVolume =
     exercise.sets
@@ -155,8 +158,7 @@ export function ExerciseBlock({
           <View key={si} style={[s.setRow, set.done && s.setRowDone, set.drop && s.dropRow]}>
             <TouchableOpacity
               style={[s.setNum, set.done && s.setNumDone, set.drop && !set.done && s.dropNum]}
-              onLongPress={() => onRemoveSet(si)}
-              delayLongPress={500}
+              onPress={() => setMenuSet(si)}
             >
               <Text style={[s.setNumText, set.done && s.setNumTextDone]}>
                 {set.done ? '✓' : setLabels[si]}
@@ -193,14 +195,48 @@ export function ExerciseBlock({
         );
       })}
 
-      <View style={s.addRow}>
-        <TouchableOpacity style={[s.addSetBtn, s.addHalf]} onPress={onAddSet}>
-          <Text style={s.addSetText}>+ Add Set</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[s.addSetBtn, s.addHalf]} onPress={onAddDropSet}>
-          <Text style={s.addSetText}>↓ Drop Set</Text>
-        </TouchableOpacity>
-      </View>
+      <TouchableOpacity style={s.addSetBtn} onPress={onAddSet}>
+        <Text style={s.addSetText}>+ Add Set</Text>
+      </TouchableOpacity>
+
+      {/* Per-set action menu (tap a set's number) */}
+      <Modal
+        visible={menuSet !== null}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setMenuSet(null)}
+      >
+        <Pressable style={s.menuOverlay} onPress={() => setMenuSet(null)}>
+          <View style={s.menuCard}>
+            <Text style={s.menuTitle}>
+              {menuSet !== null && exercise.sets[menuSet]?.drop
+                ? 'Drop set'
+                : `Set ${menuSet !== null ? setLabels[menuSet] : ''}`}
+            </Text>
+            <TouchableOpacity
+              style={s.menuItem}
+              onPress={() => {
+                if (menuSet !== null) onAddDropAfter(menuSet);
+                setMenuSet(null);
+              }}
+            >
+              <Text style={s.menuItemText}>↓ Add drop set</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={s.menuItem}
+              onPress={() => {
+                if (menuSet !== null) onRemoveSet(menuSet);
+                setMenuSet(null);
+              }}
+            >
+              <Text style={[s.menuItemText, s.menuRemove]}>Remove set</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.menuCancel} onPress={() => setMenuSet(null)}>
+              <Text style={s.menuCancelText}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -356,8 +392,6 @@ const s = StyleSheet.create({
   },
   logBtnText: { color: C.text2, fontSize: F.xs, fontWeight: '700' },
   logBtnTextDone: { color: C.green },
-  addRow: { flexDirection: 'row', gap: 0 },
-  addHalf: { flex: 1 },
   addSetBtn: {
     margin: 10,
     borderWidth: 1,
@@ -368,4 +402,34 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   addSetText: { color: C.text3, fontSize: F.sm, fontWeight: '600' },
+  menuOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+  },
+  menuCard: {
+    width: '100%',
+    backgroundColor: C.surface,
+    borderWidth: 1,
+    borderColor: C.border,
+    borderRadius: 16,
+    paddingVertical: 8,
+  },
+  menuTitle: {
+    color: C.text3,
+    fontSize: F.xs,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: 18,
+    paddingTop: 10,
+    paddingBottom: 6,
+  },
+  menuItem: { paddingVertical: 14, paddingHorizontal: 18 },
+  menuItemText: { color: C.text, fontSize: F.base, fontWeight: '600' },
+  menuRemove: { color: '#ef4444' },
+  menuCancel: { paddingVertical: 12, paddingHorizontal: 18, alignItems: 'center', marginTop: 2 },
+  menuCancelText: { color: C.text3, fontSize: F.sm, fontWeight: '600' },
 });
