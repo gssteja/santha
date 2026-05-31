@@ -16,6 +16,7 @@ type Props = {
   previousSets: WorkoutSet[];
   isOverload: boolean;
   onAddSet: () => void;
+  onAddDropSet: () => void;
   onRemoveSet: (setIdx: number) => void;
   onUpdateSet: (setIdx: number, field: 'weight' | 'reps', value: string) => void;
   onToggleSet: (setIdx: number) => void;
@@ -29,6 +30,7 @@ export function ExerciseBlock({
   previousSets,
   isOverload,
   onAddSet,
+  onAddDropSet,
   onRemoveSet,
   onUpdateSet,
   onToggleSet,
@@ -43,6 +45,10 @@ export function ExerciseBlock({
       .filter(s => s.done)
       .reduce((acc, s) => acc + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0) *
     (exercise.perSide ? 2 : 1);
+
+  // Number only the main (non-drop) sets; drop sets show ↓.
+  let mainCount = 0;
+  const setLabels = exercise.sets.map(set => (set.drop ? '↓' : String(++mainCount)));
 
   function handleRemove() {
     Alert.alert('Remove exercise?', exercise.name, [
@@ -137,21 +143,23 @@ export function ExerciseBlock({
       {/* Sets */}
       {exercise.sets.map((set, si) => {
         const prev = previousSets[si];
-        const prevLabel = prev
+        const prevLabel = set.drop
+          ? '—'
+          : prev
           ? `${prev.weight || '—'}×${prev.reps || '—'}`
           : si === 0 && previousSets.length > 0
           ? `${previousSets[0].weight || '—'}×${previousSets[0].reps || '—'}`
           : '—';
 
         return (
-          <View key={si} style={[s.setRow, set.done && s.setRowDone]}>
+          <View key={si} style={[s.setRow, set.done && s.setRowDone, set.drop && s.dropRow]}>
             <TouchableOpacity
-              style={[s.setNum, set.done && s.setNumDone]}
+              style={[s.setNum, set.done && s.setNumDone, set.drop && !set.done && s.dropNum]}
               onLongPress={() => onRemoveSet(si)}
               delayLongPress={500}
             >
               <Text style={[s.setNumText, set.done && s.setNumTextDone]}>
-                {set.done ? '✓' : si + 1}
+                {set.done ? '✓' : setLabels[si]}
               </Text>
             </TouchableOpacity>
             <Text style={s.prevText}>{prevLabel}</Text>
@@ -185,9 +193,14 @@ export function ExerciseBlock({
         );
       })}
 
-      <TouchableOpacity style={s.addSetBtn} onPress={onAddSet}>
-        <Text style={s.addSetText}>+ Add Set</Text>
-      </TouchableOpacity>
+      <View style={s.addRow}>
+        <TouchableOpacity style={[s.addSetBtn, s.addHalf]} onPress={onAddSet}>
+          <Text style={s.addSetText}>+ Add Set</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[s.addSetBtn, s.addHalf]} onPress={onAddDropSet}>
+          <Text style={s.addSetText}>↓ Drop Set</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -294,6 +307,7 @@ const s = StyleSheet.create({
     gap: 6,
   },
   setRowDone: { backgroundColor: 'rgba(34,197,94,0.05)' },
+  dropRow: { paddingLeft: 30 },
   setNum: {
     width: 28,
     height: 28,
@@ -303,6 +317,7 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   setNumDone: { backgroundColor: C.green },
+  dropNum: { backgroundColor: 'rgba(232,176,75,0.18)' },
   setNumText: { color: C.text2, fontSize: F.xs, fontWeight: '700' },
   setNumTextDone: { color: '#000' },
   prevText: {
@@ -341,6 +356,8 @@ const s = StyleSheet.create({
   },
   logBtnText: { color: C.text2, fontSize: F.xs, fontWeight: '700' },
   logBtnTextDone: { color: C.green },
+  addRow: { flexDirection: 'row', gap: 0 },
+  addHalf: { flex: 1 },
   addSetBtn: {
     margin: 10,
     borderWidth: 1,

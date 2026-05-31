@@ -10,7 +10,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store/StoreContext';
 import { makeProgramExerciseBlock } from '@/store/workoutStore';
-import { PROGRAMS, isHeavyWeek, isWaved, resolveReps, repsToInput } from '@/store/programs';
+import { PROGRAMS, isHeavyWeek, isWaved, resolveReps, repsToInput, repSequence } from '@/store/programs';
 import { C, F } from '@/constants/theme';
 
 function slugify(name: string) {
@@ -69,6 +69,7 @@ export default function TodayScreen() {
       const waved = isWaved(ex.reps);
       const perSide = !!ex.perSide || /\/\s*side/i.test(ex.reps);
       const target = `${ex.sets}×${resolveReps(ex.reps, program.week)}`;
+      const drops = ex.dropSet ? repSequence(ex.reps, program.week).slice(1) : [];
       addExercise(
         makeProgramExerciseBlock(
           slugify(ex.name),
@@ -77,7 +78,7 @@ export default function TodayScreen() {
           ex.sets,
           repsToInput(ex.reps, program.week),
           getPhaseSets(ex.name, program.week, waved),
-          { perSide, target, waved, heavy: waved && heavy, note: ex.note },
+          { perSide, target, waved, heavy: waved && heavy, note: ex.note, drops },
         ),
       );
     }

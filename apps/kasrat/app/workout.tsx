@@ -35,6 +35,7 @@ export default function WorkoutScreen() {
     removeExercise,
     swapExercise,
     addSet,
+    addDropSet,
     removeSet,
     updateSet,
     toggleSet,
@@ -67,7 +68,9 @@ export default function WorkoutScreen() {
     const ex = activeWorkout!.exercises[exIdx];
     const set = ex.sets[setIdx];
     toggleSet(exIdx, setIdx);
-    if (!set.done) {
+    // No rest if the next set is a drop — you go straight into the drop.
+    const nextIsDrop = ex.sets[setIdx + 1]?.drop === true;
+    if (!set.done && !nextIsDrop) {
       // show rest only when marking done; auto-set duration per exercise
       setRestSeconds(restForExercise(ex.name, ex.muscle));
       setRestExercise(ex.name);
@@ -142,6 +145,7 @@ export default function WorkoutScreen() {
               previousSets={getPreviousSets(ex.name)}
               isOverload={isProgressiveOverload(ex.name, ex.sets)}
               onAddSet={() => addSet(ei)}
+              onAddDropSet={() => addDropSet(ei)}
               onRemoveSet={si => removeSet(ei, si)}
               onUpdateSet={(si, field, val) => updateSet(ei, si, field, val)}
               onToggleSet={si => handleToggleSet(ei, si)}

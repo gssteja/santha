@@ -14,6 +14,8 @@ export type ProgramExercise = {
   note?: string;
   /** Unilateral (one side at a time) — reps are per side, volume counts both sides. */
   perSide?: boolean;
+  /** Drop set — each working set is followed by lighter drop set(s), no rest between. */
+  dropSet?: boolean;
 };
 
 export type ProgramDay = {
@@ -44,10 +46,10 @@ export const PROGRAMS: Program[] = [
         name: 'Day 1 — Legs (Squat)',
         exercises: [
           { name: 'Squat (heavy wk: 4×4 @80% · light wk: 3×6 @75%)', sets: 4, reps: '4 / 6', muscle: 'Quads', note: 'Leave 2–3 reps in the tank — never to failure on heavy compounds (protects the next day). Squat to at least parallel. Cue: screw feet into the floor for a stable base.' },
-          { name: 'Incline Dumbbell Press', sets: 3, reps: '8', muscle: 'Chest', note: 'Elbows tucked; bring the dumbbells down & forward, press up & back toward your face for more upper pec.' },
+          { name: 'Incline Dumbbell Press', sets: 3, reps: '8', muscle: 'Chest', perSide: true, note: 'Elbows tucked; bring the dumbbells down & forward, press up & back toward your face for more upper pec.' },
           { name: 'Lying Leg Curl', sets: 3, reps: '10', muscle: 'Hamstrings', note: 'Low-damage hamstring choice — keeps them fresh for Day 2 RDLs.' },
           { name: 'Lat Pulldown', sets: 3, reps: '10', muscle: 'Back', note: 'Vertical pull today; alternate with a horizontal row/face pull across the week.' },
-          { name: 'EZ-Bar Biceps Curl (drop set, to failure)', sets: 3, reps: '12 + 12 drop', muscle: 'Biceps', note: 'Only lift taken to failure today. Swing the bar out in an arc; drive your pinky up to supinate.' },
+          { name: 'EZ-Bar Biceps Curl (drop set, to failure)', sets: 3, reps: '12 + 12 drop', muscle: 'Biceps', dropSet: true, note: 'Only lift taken to failure today. Swing the bar out in an arc; drive your pinky up to supinate.' },
           { name: 'Hanging Leg Raise', sets: 3, reps: '12', muscle: 'Core', note: 'Squats barely hit the abs — train them directly. Pair a leg-raise (legs up) with a crunch (torso down) over the week.' },
         ],
       },
@@ -58,7 +60,7 @@ export const PROGRAMS: Program[] = [
           { name: 'Low-to-High Cable Flye', sets: 3, reps: '15', muscle: 'Chest', note: 'Isolation — push near failure (RPE 9). "Hug a tall tree"; palms up at the bottom, down at the top.' },
           { name: 'Romanian Deadlift', sets: 3, reps: '12', muscle: 'Hamstrings', note: 'Stay 2–3 reps shy of failure — big stretch = muscle damage. Hips straight back, stop just below the knees, no lower-back rounding. Keep it light/MMC.' },
           { name: 'Chest-Supported Row', sets: 3, reps: '15', muscle: 'Back', note: 'Chest support spares the lower back. Exaggerate scapular protraction at the bottom → full retraction at the top.' },
-          { name: 'Standing Arnold Press', sets: 3, reps: '12', muscle: 'Shoulders', note: 'Standing = more lateral delt. Initiate by sweeping the dumbbells out (rear delt), then press up.' },
+          { name: 'Standing Arnold Press', sets: 3, reps: '12', muscle: 'Shoulders', perSide: true, note: 'Standing = more lateral delt. Initiate by sweeping the dumbbells out (rear delt), then press up.' },
           { name: 'Triceps Pressdown', sets: 3, reps: '15', muscle: 'Triceps', perSide: true, note: 'One arm at a time, weak side first. Let the elbow drift forward at the top to stretch and smash the long head.' },
           { name: 'Smith Machine Shrug', sets: 3, reps: '12–15', muscle: 'Traps', note: 'Lighter load, strong mind-muscle — not a max-weight contest. Wide grip; shrug up & in like lifting your shoulders to your ears.' },
         ],
@@ -71,7 +73,7 @@ export const PROGRAMS: Program[] = [
           { name: 'Superset A1: Leg Press', sets: 3, reps: '15', muscle: 'Quads', note: 'Lighter/high-rep — feel the quads. Constant tension, no lockout, 15 smooth non-stop reps. Feet lower = more quad.' },
           { name: 'Superset A2: Standing Calf Raise', sets: 4, reps: '8', muscle: 'Calves', note: 'Knees locked (flex quads). Pause at the bottom of every rep so the Achilles tendon doesn’t take over.' },
           { name: 'Cable Upright Row (Rope)', sets: 3, reps: '10', muscle: 'Shoulders', note: 'Hits side delts + traps. Keep elbows ~80–90° (no higher). Lateral-raise → shrug hybrid: sweep out, then squeeze traps up.' },
-          { name: 'Hammer Curl (to failure)', sets: 3, reps: '10', muscle: 'Biceps', note: 'Taken to failure. Grip the middle of the handle. Hits brachioradialis, brachialis and biceps.' },
+          { name: 'Hammer Curl (to failure)', sets: 3, reps: '10', muscle: 'Biceps', perSide: true, note: 'Taken to failure. Grip the middle of the handle. Hits brachioradialis, brachialis and biceps.' },
         ],
       },
       {
@@ -90,7 +92,7 @@ export const PROGRAMS: Program[] = [
         name: 'Day 5 — Shoulders',
         exercises: [
           { name: 'Barbell Overhead Press (3×6 → +1 set/wk → 5×6, then +load)', sets: 3, reps: '6', muscle: 'Shoulders', note: 'Progression: 3×6, add a set each week to 5×6 by week 3, then week 4 drop back to 3×6 with more weight. Push through the outside of your hands (cues abduction); elbows ~45° tucked at the bottom, flare as the bar clears your face. Dumbbells fine if comfier.' },
-          { name: 'Dumbbell Lateral Raise', sets: 3, reps: '15', muscle: 'Shoulders', note: 'Contracted-position loading = low muscle damage, so push close to failure. (Day 4 used the stretch-loaded cable version — alternated on purpose.)' },
+          { name: 'Dumbbell Lateral Raise', sets: 3, reps: '15', muscle: 'Shoulders', perSide: true, note: 'Contracted-position loading = low muscle damage, so push close to failure. (Day 4 used the stretch-loaded cable version — alternated on purpose.)' },
           { name: 'Seated Cable Row', sets: 3, reps: '12', muscle: 'Back', note: 'Lat-dominant: pull elbows down and tucked to your sides (drop the weight a bit). Lean forward slightly on the eccentric for more lat stretch.' },
           { name: 'Lying Leg Curl', sets: 3, reps: '12', muscle: 'Hamstrings', note: 'Only leg work today. Keep the pads pinned against your ankles — squeeze the hamstrings, don’t heave with momentum. Posterior chain may still be tired from Day 4 deadlifts.' },
           { name: 'Dumbbell Concentration Curl', sets: 3, reps: '12', muscle: 'Biceps', perSide: true, note: 'Elbow pinned to the leg. Supinate by driving through the pinky (neutral at bottom → palm up at top); loose grip so the forearm doesn’t take over.' },
@@ -131,4 +133,13 @@ export function resolveReps(reps: string, week: number): string {
 export function repsToInput(reps: string, week: number): string {
   const m = resolveReps(reps, week).match(/\d+/);
   return m ? m[0] : '';
+}
+
+// Sequence of rep targets across a set's "+"-separated phases (for drop sets).
+// "12 + 12 drop" → ["12","12"]; "8" → ["8"]; the first entry is the main set, the rest drops.
+export function repSequence(reps: string, week: number): string[] {
+  return resolveReps(reps, week)
+    .split('+')
+    .map(chunk => (chunk.match(/\d+/) || [''])[0])
+    .filter(Boolean);
 }

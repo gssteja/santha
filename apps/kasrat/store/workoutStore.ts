@@ -30,6 +30,7 @@ type Action =
   | { type: 'REMOVE_EXERCISE'; exIdx: number }
   | { type: 'SWAP_EXERCISE'; exIdx: number; newName: string }
   | { type: 'ADD_SET'; exIdx: number }
+  | { type: 'ADD_DROP_SET'; exIdx: number }
   | { type: 'REMOVE_SET'; exIdx: number; setIdx: number }
   | { type: 'UPDATE_SET'; exIdx: number; setIdx: number; field: 'weight' | 'reps'; value: string }
   | { type: 'TOGGLE_SET'; exIdx: number; setIdx: number }
@@ -122,6 +123,20 @@ function reducer(state: State, action: Action): State {
         return {
           ...ex,
           sets: [...ex.sets, { weight: last?.weight ?? '', reps: last?.reps ?? '', done: false }],
+        };
+      });
+      return { ...state, activeWorkout: { ...state.activeWorkout, exercises } };
+    }
+
+    case 'ADD_DROP_SET': {
+      if (!state.activeWorkout) return state;
+      const exercises = state.activeWorkout.exercises.map((ex, i) => {
+        if (i !== action.exIdx) return ex;
+        const last = ex.sets[ex.sets.length - 1];
+        // drop set: start from the last weight (you'll lower it), reps blank, no rest
+        return {
+          ...ex,
+          sets: [...ex.sets, { weight: last?.weight ?? '', reps: '', done: false, drop: true }],
         };
       });
       return { ...state, activeWorkout: { ...state.activeWorkout, exercises } };
@@ -368,6 +383,8 @@ export function useWorkoutStore() {
 
   const addSet = useCallback((exIdx: number) => dispatch({ type: 'ADD_SET', exIdx }), []);
 
+  const addDropSet = useCallback((exIdx: number) => dispatch({ type: 'ADD_DROP_SET', exIdx }), []);
+
   const removeSet = useCallback(
     (exIdx: number, setIdx: number) => dispatch({ type: 'REMOVE_SET', exIdx, setIdx }),
     []
@@ -416,6 +433,7 @@ export function useWorkoutStore() {
     removeExercise,
     swapExercise,
     addSet,
+    addDropSet,
     removeSet,
     updateSet,
     toggleSet,
@@ -438,14 +456,25 @@ export function makeProgramExerciseBlock(
   setCount: number,
   reps: string,
   prevSets?: WorkoutSet[],
-  opts?: { perSide?: boolean; target?: string; heavy?: boolean; waved?: boolean; note?: string },
+  opts?: {
+    perSide?: boolean;
+    target?: string;
+    heavy?: boolean;
+    waved?: boolean;
+    note?: string;
+    drops?: string[];
+  },
 ): WorkoutExercise {
   const n = Math.max(1, setCount);
-  const sets: WorkoutSet[] = Array.from({ length: n }, (_, i) => ({
-    weight: prevSets?.[i]?.weight ?? prevSets?.[0]?.weight ?? '',
-    reps,
-    done: false,
-  }));
+  const drops = opts?.drops ?? [];
+  const sets: WorkoutSet[] = [];
+  for (let i = 0; i < n; i++) {
+    sets.push({ weight: prevSets?.[i]?.weight ?? prevSets?.[0]?.weight ?? '', reps, done: false });
+    // Each working set is followed by its prescribed drop(s) — lighter, no rest.
+    for (const dr of drops) {
+      sets.push({ weight: '', reps: dr, done: false, drop: true });
+    }
+  }
   return {
     exId,
     name,

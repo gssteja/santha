@@ -1,9 +1,11 @@
+import * as Notifications from 'expo-notifications';
 import React, { useEffect, useRef, useState } from 'react';
 import {
   Animated,
   AppState,
   Easing,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -11,6 +13,19 @@ import {
   View,
 } from 'react-native';
 import { C, F } from '@/constants/theme';
+
+// Play the rest-end sound even when foregrounded; the OS handles it when backgrounded.
+// Notification sounds mix with other audio (music keeps playing).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: false,
+  }),
+});
+
+const REST_CHANNEL = 'rest-timer';
 
 type Props = {
   visible: boolean;
@@ -46,8 +61,51 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
   const endAtRef = useRef(0);
   const targetRef = useRef(seconds);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const notifIdRef = useRef<string | null>(null);
+  const firedRef = useRef(false); // true once the timer naturally completed (let the ding stand)
   const opacity = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(1)).current; // 1 → 0
+
+  // One-time: notification permission + Android channel (HIGH importance so it sounds).
+  useEffect(() => {
+    (async () => {
+      try {
+        await Notifications.requestPermissionsAsync();
+        if (Platform.OS === 'android') {
+          await Notifications.setNotificationChannelAsync(REST_CHANNEL, {
+            name: 'Rest timer',
+            importance: Notifications.AndroidImportance.HIGH,
+            sound: 'default',
+            vibrationPattern: [0, 250, 150, 250],
+          });
+        }
+      } catch {}
+    })();
+  }, []);
+
+  async function cancelDing() {
+    const id = notifIdRef.current;
+    notifIdRef.current = null;
+    if (id) {
+      try { await Notifications.cancelScheduledNotificationAsync(id); } catch {}
+    }
+  }
+
+  // Schedule the rest-end ding at `secs` from now (OS fires it even backgrounded/locked).
+  async function scheduleDing(secs: number) {
+    await cancelDing();
+    if (secs <= 0) return;
+    try {
+      notifIdRef.current = await Notifications.scheduleNotificationAsync({
+        content: { title: 'Rest done', body: 'Next set 💪', sound: 'default' },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: secs,
+          channelId: REST_CHANNEL,
+        },
+      });
+    } catch {}
+  }
 
   function runProgress(from: number, total: number) {
     progress.setValue(total > 0 ? from / total : 0);
@@ -68,6 +126,7 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
     setRemaining(left);
     if (left <= 0) {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      firedRef.current = true; // completed naturally — let the scheduled ding stand
       Vibration.vibrate(400);
       onDismiss();
     }
@@ -77,10 +136,12 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
     if (visible) {
       endAtRef.current = Date.now() + seconds * 1000;
       targetRef.current = seconds;
+      firedRef.current = false;
       setTarget(seconds);
       setRemaining(seconds);
       Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
       runProgress(seconds, seconds);
+      scheduleDing(seconds);
       intervalRef.current = setInterval(tick, 250);
     } else {
       Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start();
@@ -88,6 +149,8 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
+      // Cancel the pending ding unless the timer actually completed (skip / leave / new timer).
+      if (!firedRef.current) cancelDing();
     };
   }, [visible, seconds]);
 
@@ -111,6 +174,12 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
     setTarget(total);
     setRemaining(next);
     runProgress(next, total);
+    scheduleDing(next); // move the ding to the new end time
+  }
+
+  function handleSkip() {
+    cancelDing();
+    onDismiss();
   }
 
   const widthPct = progress.interpolate({
@@ -138,7 +207,7 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
             <TouchableOpacity style={s.btn} onPress={() => addTime(15)}>
               <Text style={s.btnText}>+15s</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[s.btn, s.skipBtn]} onPress={onDismiss}>
+            <TouchableOpacity style={[s.btn, s.skipBtn]} onPress={handleSkip}>
               <Text style={[s.btnText, s.skipText]}>Skip</Text>
             </TouchableOpacity>
           </View>

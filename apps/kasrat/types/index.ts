@@ -2,6 +2,8 @@ export type WorkoutSet = {
   weight: string;
   reps: string;
   done: boolean;
+  /** Part of a drop set — done immediately after the prior set at a lighter weight (no rest). */
+  drop?: boolean;
 };
 
 export type WorkoutExercise = {
