@@ -97,7 +97,7 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
     if (secs <= 0) return;
     try {
       notifIdRef.current = await Notifications.scheduleNotificationAsync({
-        content: { title: 'Rest done', body: 'Next set 💪', sound: 'default' },
+        content: { title: 'Rest done', body: 'Time for your next set.', sound: 'default' },
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: secs,

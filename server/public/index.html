@@ -121,17 +121,17 @@
   </div>
 
   <script>
-    const ICONS = {
-      workout: { emoji: '💪', bg: '#1a1a3a' },
-      habit: { emoji: '✅', bg: '#0f2a1a' },
-      timer: { emoji: '⏱️', bg: '#2a1a0f' },
-      note: { emoji: '📝', bg: '#1a2a0f' },
-      default: { emoji: '📱', bg: '#1e1e2a' }
+    const ICON_BG = {
+      workout: '#1a1a3a',
+      habit: '#0f2a1a',
+      timer: '#2a1a0f',
+      note: '#1a2a0f',
+      default: '#1e1e2a'
     };
 
-    function getIcon(id, meta) {
-      const key = Object.keys(ICONS).find(k => id.includes(k) || (meta.category || '').includes(k)) || 'default';
-      return ICONS[key];
+    function iconBg(id, meta) {
+      const key = Object.keys(ICON_BG).find(k => id.includes(k) || (meta.category || '').includes(k)) || 'default';
+      return ICON_BG[key];
     }
 
     async function loadApps() {
@@ -155,14 +155,15 @@
           return;
         }
         grid.innerHTML = apps.map(app => {
-          const icon = getIcon(app.id, app);
+          const bg = iconBg(app.id, app);
           const isApk = app.type === 'apk';
           const url = isApk ? (app.download || app.url) : app.url;
           const label = isApk ? 'Install' : 'Open';
           const ver = app.version ? `<div class="app-ver">v${app.version}</div>` : '';
+          const initial = (app.name || app.id).trim().charAt(0).toUpperCase();
           return `
             <div class="app-card" onclick="openApp('${url}')">
-              <div class="app-icon" style="background:${icon.bg}">${app.icon || icon.emoji}</div>
+              <div class="app-icon" style="background:${bg}">${app.icon || initial}</div>
               <div class="app-name">${app.name || app.id}</div>
               ${ver}
               <div class="app-desc">${app.description || ''}</div>

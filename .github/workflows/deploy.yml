@@ -90,7 +90,7 @@ jobs:
             -H "x-api-key: ${{ secrets.SANTHA_API_KEY }}" \
             -F apk=@"$APK" \
             -F "meta=$META"
-          echo "✓ Deployed $APP $V"
+          echo "Deployed $APP $V"
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
