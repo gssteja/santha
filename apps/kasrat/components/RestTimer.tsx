@@ -4,7 +4,6 @@ import {
   Animated,
   AppState,
   Easing,
-  Modal,
   Platform,
   StyleSheet,
   Text,
@@ -14,18 +13,22 @@ import {
 } from 'react-native';
 import { C, F } from '@/constants/theme';
 
-// Play the rest-end sound even when foregrounded; the OS handles it when backgrounded.
-// Notification sounds mix with other audio (music keeps playing).
+// Play the rest-end sound when foregrounded but suppress the banner — the inline
+// timer strip already shows progress, so a popup on top of it would be redundant.
+// Sound rides the Android channel + iOS sound:'default' from the scheduled notif.
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldPlaySound: true,
     shouldSetBadge: false,
-    shouldShowBanner: true,
+    shouldShowBanner: false,
     shouldShowList: false,
   }),
 });
 
 const REST_CHANNEL = 'rest-timer';
+// Fixed identifier so a new schedule replaces the prior one in the system tray
+// (both pending and any already-delivered banner share the same slot).
+const REST_NOTIF_ID = 'rest-timer-end';
 
 type Props = {
   visible: boolean;
@@ -50,7 +53,7 @@ export function restForExercise(name: string, muscle?: string): number {
 function fmt(secs: number): string {
   const m = Math.floor(secs / 60);
   const s = secs % 60;
-  return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `${s}`;
+  return m > 0 ? `${m}:${s.toString().padStart(2, '0')}` : `0:${s.toString().padStart(2, '0')}`;
 }
 
 export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) {
@@ -61,7 +64,6 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
   const endAtRef = useRef(0);
   const targetRef = useRef(seconds);
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const notifIdRef = useRef<string | null>(null);
   const firedRef = useRef(false); // true once the timer naturally completed (let the ding stand)
   const opacity = useRef(new Animated.Value(0)).current;
   const progress = useRef(new Animated.Value(1)).current; // 1 → 0
@@ -70,34 +72,43 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
   useEffect(() => {
     (async () => {
       try {
-        await Notifications.requestPermissionsAsync();
+        await Notifications.requestPermissionsAsync({
+          ios: { allowAlert: true, allowSound: true, allowBadge: false },
+        } as any);
         if (Platform.OS === 'android') {
           await Notifications.setNotificationChannelAsync(REST_CHANNEL, {
             name: 'Rest timer',
             importance: Notifications.AndroidImportance.HIGH,
             sound: 'default',
             vibrationPattern: [0, 250, 150, 250],
+            enableVibrate: true,
           });
         }
       } catch {}
     })();
   }, []);
 
-  async function cancelDing() {
-    const id = notifIdRef.current;
-    notifIdRef.current = null;
-    if (id) {
-      try { await Notifications.cancelScheduledNotificationAsync(id); } catch {}
-    }
+  async function clearDing() {
+    // Clear both pending (not yet fired) and delivered (already in tray) under our fixed id.
+    try { await Notifications.cancelScheduledNotificationAsync(REST_NOTIF_ID); } catch {}
+    try { await Notifications.dismissNotificationAsync(REST_NOTIF_ID); } catch {}
   }
 
   // Schedule the rest-end ding at `secs` from now (OS fires it even backgrounded/locked).
+  // Uses a fixed identifier so a re-schedule replaces any prior banner instead of stacking.
   async function scheduleDing(secs: number) {
-    await cancelDing();
+    await clearDing();
     if (secs <= 0) return;
     try {
-      notifIdRef.current = await Notifications.scheduleNotificationAsync({
-        content: { title: 'Rest done', body: 'Time for your next set.', sound: 'default' },
+      await Notifications.scheduleNotificationAsync({
+        identifier: REST_NOTIF_ID,
+        content: {
+          title: 'Rest done',
+          body: 'Time for your next set.',
+          sound: 'default',
+          // iOS: bypass Focus, ring even in silent (Time Sensitive entitlement).
+          interruptionLevel: 'timeSensitive',
+        } as any,
         trigger: {
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: secs,
@@ -139,23 +150,22 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
       firedRef.current = false;
       setTarget(seconds);
       setRemaining(seconds);
-      Animated.timing(opacity, { toValue: 1, duration: 200, useNativeDriver: true }).start();
+      Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
       runProgress(seconds, seconds);
       scheduleDing(seconds);
       intervalRef.current = setInterval(tick, 250);
     } else {
-      Animated.timing(opacity, { toValue: 0, duration: 150, useNativeDriver: true }).start();
+      Animated.timing(opacity, { toValue: 0, duration: 120, useNativeDriver: true }).start();
       if (intervalRef.current) clearInterval(intervalRef.current);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
-      // Cancel the pending ding unless the timer actually completed (skip / leave / new timer).
-      if (!firedRef.current) cancelDing();
+      // Cancel any pending/delivered ding unless the timer actually completed (let ding stand).
+      if (!firedRef.current) clearDing();
     };
   }, [visible, seconds]);
 
-  // Re-sync the moment the app returns to foreground (catches the count up to wall clock,
-  // re-runs the bar from the corrected position, and fires completion if it elapsed away).
+  // Re-sync when the app returns to foreground (timer is wall-clock based, but the bar/text need a nudge).
   useEffect(() => {
     const sub = AppState.addEventListener('change', state => {
       if (state === 'active' && visible) {
@@ -178,7 +188,7 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
   }
 
   function handleSkip() {
-    cancelDing();
+    clearDing();
     onDismiss();
   }
 
@@ -187,86 +197,81 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
     outputRange: ['0%', '100%'],
   });
 
+  if (!visible) return null;
+
   return (
-    <Modal visible={visible} transparent animationType="none" onRequestClose={onDismiss}>
-      <Animated.View style={[s.overlay, { opacity }]}>
-        <View style={s.card}>
-          <Text style={s.label}>Rest</Text>
-          {exerciseName ? <Text style={s.exName} numberOfLines={1}>{exerciseName}</Text> : null}
-          <View style={s.circle}>
-            <Text style={s.countdown}>{fmt(remaining)}</Text>
-            <Text style={s.targetText}>of {fmt(target)}</Text>
-          </View>
-          <View style={s.track}>
-            <Animated.View style={[s.fill, { width: widthPct }]} />
-          </View>
-          <View style={s.actions}>
-            <TouchableOpacity style={s.btn} onPress={() => addTime(-15)}>
-              <Text style={s.btnText}>−15s</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={s.btn} onPress={() => addTime(15)}>
-              <Text style={s.btnText}>+15s</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[s.btn, s.skipBtn]} onPress={handleSkip}>
-              <Text style={[s.btnText, s.skipText]}>Skip</Text>
-            </TouchableOpacity>
-          </View>
+    <Animated.View style={[s.bar, { opacity }]} pointerEvents="box-none">
+      <View style={s.row}>
+        <View style={s.left}>
+          <Text style={s.label}>REST</Text>
+          {exerciseName ? (
+            <Text style={s.exName} numberOfLines={1}>{exerciseName}</Text>
+          ) : null}
         </View>
-      </Animated.View>
-    </Modal>
+        <Text style={s.countdown}>{fmt(remaining)}</Text>
+        <View style={s.actions}>
+          <TouchableOpacity style={s.btn} onPress={() => addTime(-15)}>
+            <Text style={s.btnText}>−15</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={s.btn} onPress={() => addTime(15)}>
+            <Text style={s.btnText}>+15</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.btn, s.skipBtn]} onPress={handleSkip}>
+            <Text style={[s.btnText, s.skipText]}>Skip</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+      <View style={s.track}>
+        <Animated.View style={[s.fill, { width: widthPct }]} />
+      </View>
+    </Animated.View>
   );
 }
 
 const s = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.88)',
-    justifyContent: 'center',
-    alignItems: 'center',
+  bar: {
+    backgroundColor: C.surface,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: C.border,
+    paddingHorizontal: 14,
+    paddingTop: 8,
+    paddingBottom: 0,
   },
-  card: { alignItems: 'center', gap: 18, paddingHorizontal: 24 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  left: { flex: 1, minWidth: 0 },
   label: {
-    color: C.text2,
-    fontSize: F.sm,
-    fontWeight: '700',
+    color: C.accent,
+    fontSize: F.xs,
+    fontWeight: '800',
     letterSpacing: 2,
-    textTransform: 'uppercase',
   },
-  exName: { color: C.text3, fontSize: F.sm, maxWidth: 280, textAlign: 'center' },
-  circle: {
-    width: 180,
-    height: 180,
-    borderRadius: 90,
-    borderWidth: 3,
-    borderColor: C.accent,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+  exName: { color: C.text3, fontSize: F.xs, marginTop: 1 },
   countdown: {
     color: C.text,
-    fontSize: 56,
+    fontSize: F.xl,
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
+    minWidth: 56,
+    textAlign: 'right',
   },
-  targetText: { color: C.text3, fontSize: F.xs, marginTop: 2, fontVariant: ['tabular-nums'] },
-  track: {
-    width: 220,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: C.surface2,
-    overflow: 'hidden',
-  },
-  fill: { height: 6, borderRadius: 3, backgroundColor: C.accent },
-  actions: { flexDirection: 'row', gap: 12 },
+  actions: { flexDirection: 'row', gap: 6 },
   btn: {
-    backgroundColor: C.surface,
+    backgroundColor: C.surface2,
     borderWidth: 1,
     borderColor: C.border,
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 18,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 9,
   },
-  btnText: { color: C.text, fontSize: F.sm, fontWeight: '700' },
+  btnText: { color: C.text, fontSize: F.xs, fontWeight: '700' },
   skipBtn: { backgroundColor: 'transparent', borderColor: C.text3 },
   skipText: { color: C.text3 },
+  track: {
+    height: 3,
+    backgroundColor: C.surface2,
+    marginTop: 8,
+    marginHorizontal: -14,
+    overflow: 'hidden',
+  },
+  fill: { height: 3, backgroundColor: C.accent },
 });

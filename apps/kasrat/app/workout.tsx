@@ -126,6 +126,13 @@ export default function WorkoutScreen() {
         </View>
       </View>
 
+      <RestTimer
+        visible={restVisible}
+        seconds={restSeconds}
+        exerciseName={restExercise}
+        onDismiss={() => setRestVisible(false)}
+      />
+
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
@@ -159,13 +166,6 @@ export default function WorkoutScreen() {
           <Text style={styles.addExText}>+ Add Exercise</Text>
         </TouchableOpacity>
       </ScrollView>
-
-      <RestTimer
-        visible={restVisible}
-        seconds={restSeconds}
-        exerciseName={restExercise}
-        onDismiss={() => setRestVisible(false)}
-      />
 
       <ExercisePicker
         visible={showPicker}
