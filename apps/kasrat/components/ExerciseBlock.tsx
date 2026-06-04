@@ -46,7 +46,7 @@ export function ExerciseBlock({
   const exerciseVolume =
     exercise.sets
       .filter(s => s.done)
-      .reduce((acc, s) => acc + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0) *
+      .reduce((acc, s) => acc + Math.max(0, parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0) *
     (exercise.perSide ? 2 : 1);
 
   // Number only the main (non-drop) sets; drop sets show ↓.

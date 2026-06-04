@@ -42,7 +42,7 @@ function fmtAgo(ts: number) {
 export default function TodayScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { activeWorkout, history, startWorkout, addExercise, getPhaseSets, syncing, lastSyncedAt } = useStore();
+  const { activeWorkout, history, startWorkout, addExercise, getPhaseSets, getSeedSets, syncing, lastSyncedAt } = useStore();
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -87,6 +87,10 @@ export default function TodayScreen() {
       const perSide = !!ex.perSide || /\/\s*side/i.test(ex.reps);
       const target = `${ex.sets}×${resolveReps(ex.reps, week)}`;
       const drops = ex.dropSet ? repSequence(ex.reps, week).slice(1) : [];
+      const repsNum = parseInt(repsToInput(ex.reps, week) || '0') || 0;
+      const phaseSets = getPhaseSets(ex.name, week, waved);
+      // Phase-aware log wins; otherwise seed (1RM scale for waved, starter for new lifts).
+      const seedSets = phaseSets.length ? phaseSets : getSeedSets(ex.name, ex.sets, waved, repsNum);
       addExercise(
         makeProgramExerciseBlock(
           slugify(ex.name),
@@ -94,7 +98,7 @@ export default function TodayScreen() {
           ex.muscle ?? '',
           ex.sets,
           repsToInput(ex.reps, week),
-          getPhaseSets(ex.name, week, waved),
+          seedSets,
           { perSide, target, waved, heavy: waved && heavy, note: ex.note, drops },
         ),
       );

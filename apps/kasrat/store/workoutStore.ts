@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { SERVER_URL, STORE_KEY } from '@/constants/config';
-import { PROGRAMS, isHeavyWeek } from '@/store/programs';
+import { PROGRAMS, epley1RM, isHeavyWeek, starterWeight, weightForReps } from '@/store/programs';
 import type { ActiveWorkout, WorkoutExercise, WorkoutRecord, WorkoutSet } from '@/types';
 
 const STORAGE_KEY = 'kasrat_v1';
@@ -185,11 +185,13 @@ function reducer(state: State, action: Action): State {
       const w = state.activeWorkout;
       const duration = Math.floor((Date.now() - w.startTime) / 1000);
       const completedSets = w.exercises.flatMap(e => e.sets.filter(s => s.done));
-      // Unilateral lifts count both sides toward volume.
+      // Unilateral lifts count both sides toward volume. Negative weight (assisted
+      // pull-ups / dips, where user logs the assist as -lbs) clamps to 0 — assisted
+      // reps don't contribute to load volume.
       const volume = w.exercises.reduce((acc, e) => {
         const mult = e.perSide ? 2 : 1;
         return acc + e.sets.filter(s => s.done).reduce(
-          (a, s) => a + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0) * mult,
+          (a, s) => a + Math.max(0, parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0) * mult,
           0
         );
       }, 0);
@@ -343,14 +345,43 @@ export function useWorkoutStore() {
     [state.history]
   );
 
-  // Live volume for active workout (unilateral lifts count both sides)
+  // One-shot seed weights for the next 2 sessions: only used when no real log
+  // exists. Waved lifts (squat/bench/deadlift) extrapolate via Epley 1RM from the
+  // opposite phase if logged; everything else falls back to the starter table.
+  // TODO(remove-after-d5): drop this helper + its call sites once D4 and D5 are logged.
+  const getSeedSets = useCallback(
+    (exerciseName: string, setCount: number, waved: boolean, currentReps: number): WorkoutSet[] => {
+      if (waved) {
+        const prev = getPreviousSets(exerciseName);
+        const top = prev.reduce<{ w: number; r: number } | null>((acc, s) => {
+          const w = parseFloat(s.weight) || 0;
+          const r = parseInt(s.reps) || 0;
+          if (w <= 0 || r <= 0) return acc;
+          return !acc || w > acc.w ? { w, r } : acc;
+        }, null);
+        if (top && currentReps > 0) {
+          const orm = epley1RM(top.w, top.r);
+          const w = Math.max(5, Math.round(weightForReps(orm, currentReps) / 5) * 5);
+          return Array.from({ length: setCount }, () => ({ weight: String(w), reps: '', done: false }));
+        }
+      }
+      const sw = starterWeight(exerciseName);
+      if (sw !== undefined) {
+        return Array.from({ length: setCount }, () => ({ weight: String(sw), reps: '', done: false }));
+      }
+      return [];
+    },
+    [getPreviousSets]
+  );
+
+  // Live volume for active workout (unilateral lifts count both sides; negative weight clamps to 0).
   const activeVolume = useMemo(() => {
     if (!state.activeWorkout) return 0;
     return Math.round(
       state.activeWorkout.exercises.reduce((acc, e) => {
         const mult = e.perSide ? 2 : 1;
         return acc + e.sets.filter(s => s.done).reduce(
-          (a, s) => a + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0) * mult,
+          (a, s) => a + Math.max(0, parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0) * mult,
           0
         );
       }, 0)
@@ -362,10 +393,10 @@ export function useWorkoutStore() {
     (exerciseName: string, currentSets: WorkoutSet[]): boolean => {
       const prev = getPreviousSets(exerciseName);
       if (!prev.length) return false;
-      const prevVol = prev.reduce((a, s) => a + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
+      const prevVol = prev.reduce((a, s) => a + Math.max(0, parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
       const currVol = currentSets
         .filter(s => s.done)
-        .reduce((a, s) => a + (parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
+        .reduce((a, s) => a + Math.max(0, parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
       return currVol > prevVol;
     },
     [getPreviousSets]
@@ -440,6 +471,7 @@ export function useWorkoutStore() {
     activeVolume,
     getPreviousSets,
     getPhaseSets,
+    getSeedSets,
     isProgressiveOverload,
     startWorkout,
     addExercise,
