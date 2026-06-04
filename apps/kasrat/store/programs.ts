@@ -57,7 +57,7 @@ export const PROGRAMS: Program[] = [
         name: 'Day 2 — Chest',
         exercises: [
           { name: 'Bench Press (heavy wk: 3×3 @85% · light wk: 3×5)', sets: 3, reps: '3 / 5', muscle: 'Chest', note: 'Heavy but not max — external cues over mind-muscle. Squeeze the bar, bend it to tuck elbows, puff the chest, press up & back.' },
-          { name: 'Low-to-High Cable Flye', sets: 3, reps: '15', muscle: 'Chest', note: 'Isolation — push near failure (RPE 9). "Hug a tall tree"; palms up at the bottom, down at the top.' },
+          { name: 'Low-to-High Cable Flye', sets: 3, reps: '15', muscle: 'Chest', perSide: true, note: 'Isolation — push near failure (RPE 9). One side at a time: "hug a tall tree"; palm up at the bottom, down at the top.' },
           { name: 'Romanian Deadlift', sets: 3, reps: '12', muscle: 'Hamstrings', note: 'Stay 2–3 reps shy of failure — big stretch = muscle damage. Hips straight back, stop just below the knees, no lower-back rounding. Keep it light/MMC.' },
           { name: 'Chest-Supported Row', sets: 3, reps: '15', muscle: 'Back', note: 'Chest support spares the lower back. Exaggerate scapular protraction at the bottom → full retraction at the top.' },
           { name: 'Standing Arnold Press', sets: 3, reps: '12', muscle: 'Shoulders', perSide: true, note: 'Standing = more lateral delt. Initiate by sweeping the dumbbells out (rear delt), then press up.' },
@@ -69,7 +69,7 @@ export const PROGRAMS: Program[] = [
         name: 'Day 3 — Back',
         exercises: [
           { name: 'Weighted Pull-Up', sets: 3, reps: '6', muscle: 'Back', note: '3rd back day — warm up thoroughly (RPE 8). Even tempo: rep 6 should look like rep 1; drop weight if form breaks. Stretch lats 20–30s between sets.' },
-          { name: 'Bent-Over Row', sets: 3, reps: '10', muscle: 'Back', note: 'Execution over weight — limit momentum, no swinging. Set torso ~parallel to the floor.' },
+          { name: 'Cable Row', sets: 3, reps: '10', muscle: 'Back', note: 'Execution over weight — limit momentum, no swinging. Pull elbows back and squeeze the mid-back at the end-range; controlled return to a full stretch.' },
           { name: 'Superset A1: Leg Press', sets: 3, reps: '15', muscle: 'Quads', note: 'Lighter/high-rep — feel the quads. Constant tension, no lockout, 15 smooth non-stop reps. Feet lower = more quad.' },
           { name: 'Superset A2: Standing Calf Raise', sets: 4, reps: '8', muscle: 'Calves', note: 'Knees locked (flex quads). Pause at the bottom of every rep so the Achilles tendon doesn’t take over.' },
           { name: 'Cable Upright Row (Rope)', sets: 3, reps: '10', muscle: 'Shoulders', note: 'Hits side delts + traps. Keep elbows ~80–90° (no higher). Lateral-raise → shrug hybrid: sweep out, then squeeze traps up.' },
@@ -79,7 +79,7 @@ export const PROGRAMS: Program[] = [
       {
         name: 'Day 4 — Legs (Deadlift)',
         exercises: [
-          { name: 'Reset Deadlift (wk A: 3×5 @75% · wk B: 3×2 heavy)', sets: 3, reps: '5 / 2', muscle: 'Hamstrings', note: 'Full dead stop & reset on the floor every rep — no bounce/momentum. Sumo favored here (more quad, less lower back) or pick your stronger stance. Cue lats by pulling the bar toward your shins. Linear load increase each week per rep scheme.' },
+          { name: 'Reset Deadlift (heavy wk: 3×2 · light wk: 3×5 @75%)', sets: 3, reps: '2 / 5', muscle: 'Hamstrings', note: 'Full dead stop & reset on the floor every rep — no bounce/momentum. Sumo favored here (more quad, less lower back) or pick your stronger stance. Cue lats by pulling the bar toward your shins. Linear load increase each week per rep scheme.' },
           { name: 'Weighted Dip', sets: 3, reps: '8', muscle: 'Chest', note: 'Shoulder blades retracted & depressed; ~90° elbow bend. Lean ~30° forward and drive your hands down like a press — hits the whole pec, not just lower.' },
           { name: 'Leg Extension', sets: 3, reps: '20', muscle: 'Quads', note: 'Squeeze the quads to move the weight (and flex on the negative); keep glutes/hams/calves loose. Strong MMC — you may need to stop a bit short once the burn hits.' },
           { name: 'Unilateral Lat Pulldown', sets: 3, reps: '12 / side', muscle: 'Back', perSide: true, note: 'One arm at a time — fixes side-to-side asymmetry and adds loading variety. Pull the elbow down AND in (extension + adduction).' },
@@ -142,4 +142,46 @@ export function repSequence(reps: string, week: number): string[] {
     .split('+')
     .map(chunk => (chunk.match(/\d+/) || [''])[0])
     .filter(Boolean);
+}
+
+// Epley 1RM estimate, and inverse — used to project a load from one rep target
+// to another (e.g. heavy-wk top set → light-wk working weight for a waved lift).
+export function epley1RM(weight: number, reps: number): number {
+  if (reps <= 0) return weight;
+  return weight * (1 + reps / 30);
+}
+
+export function weightForReps(orm: number, reps: number): number {
+  if (reps <= 0) return orm;
+  return orm / (1 + reps / 30);
+}
+
+// TODO(remove-after-d5): Delete this table + starterWeight() + the getSeedSets call
+// in workoutStore once Day 4 and Day 5 have been logged. One-shot prefill so the
+// upcoming two sessions don't start with blank weights; after both log, every entry
+// here has a real previous-set lookup and the table is dead code.
+// Conservative starter loads (lb) — adjust on first use. Lower bound so the first
+// session isn't unsafe.
+const STARTER_WEIGHTS: Record<string, number> = {
+  // Day 4
+  'reset deadlift (heavy wk: 3×2 · light wk: 3×5 @75%)': 225,
+  'weighted dip': 25,
+  'leg extension': 80,
+  'unilateral lat pulldown': 50,
+  'giant set c1: rope face pull (rear-delt)': 30,
+  'giant set c2: cable overhead triceps extension': 40,
+  'giant set c3: egyptian lateral raise': 15,
+  // Day 5
+  'barbell overhead press (3×6 → +1 set/wk → 5×6, then +load)': 95,
+  'dumbbell lateral raise': 15,
+  'seated cable row': 100,
+  'lying leg curl': 70,
+  'dumbbell concentration curl': 20,
+  'cable crunch': 60,
+  'seated calf raise': 90,
+  'push-ups (amrap, to failure)': 0,
+};
+
+export function starterWeight(exerciseName: string): number | undefined {
+  return STARTER_WEIGHTS[exerciseName.toLowerCase()];
 }
