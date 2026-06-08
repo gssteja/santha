@@ -1,6 +1,8 @@
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useState } from 'react';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store/StoreContext';
+import { ProgressChart, cleanExName } from '@/components/ProgressChart';
 import { C, F } from '@/constants/theme';
 
 function fmtTime(secs: number) {
@@ -18,8 +20,13 @@ function fmtDate(iso: string) {
 export default function HistoryScreen() {
   const insets = useSafeAreaInsets();
   const { history } = useStore();
+  const [chartExercise, setChartExercise] = useState<string | null>(null);
 
   return (
+    <>
+    {chartExercise && (
+      <ProgressChart exerciseName={chartExercise} onClose={() => setChartExercise(null)} />
+    )}
     <ScrollView
       style={styles.root}
       contentContainerStyle={[styles.content, { paddingTop: insets.top + 8 }]}
@@ -56,12 +63,14 @@ export default function HistoryScreen() {
               </View>
             </View>
 
-            {/* Per-exercise breakdown */}
+            {/* Per-exercise breakdown — tap name to see progression chart */}
             {w.exerciseData && w.exerciseData.length > 0 && (
               <View style={styles.breakdown}>
                 {w.exerciseData.map((ex, i) => (
                   <View key={i} style={styles.exRow}>
-                    <Text style={styles.exName}>{ex.name}</Text>
+                    <TouchableOpacity onPress={() => setChartExercise(ex.name)}>
+                      <Text style={styles.exName}>{cleanExName(ex.name)}</Text>
+                    </TouchableOpacity>
                     <Text style={styles.exSets}>
                       {ex.sets.map(s => `${s.weight}×${s.reps}`).join('  ')}
                     </Text>
@@ -83,6 +92,7 @@ export default function HistoryScreen() {
         ))
       )}
     </ScrollView>
+    </>
   );
 }
 

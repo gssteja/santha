@@ -60,6 +60,42 @@ export default function TodayScreen() {
 
   const activeProgram = PROGRAMS[0];
 
+  const { streakWeeks, thisWeekCount } = useMemo(() => {
+    const TARGET = 5;
+    const weekCounts = new Map<string, number>();
+    for (const rec of history) {
+      const d = new Date(rec.date);
+      const day = d.getDay();
+      d.setDate(d.getDate() - (day === 0 ? 6 : day - 1));
+      d.setHours(0, 0, 0, 0);
+      const key = d.toISOString().slice(0, 10);
+      weekCounts.set(key, (weekCounts.get(key) ?? 0) + 1);
+    }
+    const now = new Date();
+    const nowDay = now.getDay();
+    const thisMonday = new Date(now);
+    thisMonday.setDate(now.getDate() - (nowDay === 0 ? 6 : nowDay - 1));
+    thisMonday.setHours(0, 0, 0, 0);
+    const thisWeekKey = thisMonday.toISOString().slice(0, 10);
+    const thisWeekCount = weekCounts.get(thisWeekKey) ?? 0;
+
+    // Count consecutive complete weeks ending at the most recent complete week
+    const complete = [...weekCounts.entries()]
+      .filter(([, c]) => c >= TARGET)
+      .map(([k]) => k)
+      .sort((a, b) => b.localeCompare(a));
+    let streakWeeks = 0;
+    for (let i = 0; i < complete.length; i++) {
+      if (i === 0) { streakWeeks = 1; continue; }
+      const prev = new Date(complete[i - 1]);
+      const curr = new Date(complete[i]);
+      if (Math.round((prev.getTime() - curr.getTime()) / 86_400_000) === 7) {
+        streakWeeks++;
+      } else break;
+    }
+    return { streakWeeks, thisWeekCount };
+  }, [history]);
+
   // Derive the next program day from logged history (not a local pointer that's lost on
   // reinstall): find the most recent workout matching a program day, suggest the next one.
   const { dayIndex, week } = useMemo(() => {
@@ -132,6 +168,14 @@ export default function TodayScreen() {
             {syncing ? 'Syncing…' : lastSyncedAt ? `Synced ${fmtAgo(lastSyncedAt)}` : 'Not synced yet'}
           </Text>
         </View>
+        {(streakWeeks > 0 || thisWeekCount > 0) && (
+          <View style={styles.streakRow}>
+            {streakWeeks > 0 && (
+              <Text style={styles.streakBadge}>{streakWeeks}w streak</Text>
+            )}
+            <Text style={styles.streakWeek}>{thisWeekCount}/5 this week</Text>
+          </View>
+        )}
       </View>
 
       {/* Active workout banner */}
@@ -227,6 +271,9 @@ const styles = StyleSheet.create({
   syncDotOk: { backgroundColor: C.green },
   syncDotIdle: { backgroundColor: C.text3 },
   syncText: { fontSize: F.xs, color: C.text3 },
+  streakRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
+  streakBadge: { fontSize: F.xs, fontWeight: '800', color: C.accent, letterSpacing: 0.5 },
+  streakWeek: { fontSize: F.xs, color: C.text3 },
   activeBanner: {
     marginHorizontal: 16,
     marginBottom: 12,

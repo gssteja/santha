@@ -37,17 +37,28 @@ type Props = {
   onDismiss: () => void;
 };
 
-// Auto rest duration per exercise: heavy compounds rest longest, isolation shortest.
-export function restForExercise(name: string, muscle?: string): number {
-  const n = name.toLowerCase();
-  if (/(squat|deadlift|bench|overhead press|barbell.*press|arnold press|weighted pull|weighted dip|\bdip\b|bent-over row|pull-?up)/.test(n)) {
-    return 180;
-  }
-  if (/(curl|lateral raise|leg raise|fly|flye|pushdown|pressdown|extension|crunch|face pull|shrug|push-?up|calf|leg curl|cable crunch)/.test(n)) {
-    return 75;
-  }
-  // Rows, machine presses, pulldowns, leg press, RDL — moderate
-  return 120;
+// Science-backed rest durations (Schoenfeld et al. 2016, Grgic et al. meta-analysis):
+// longer rests benefit both strength and hypertrophy; scale with exercise demand.
+export function restForExercise(name: string, _muscle?: string): number {
+  // Strip program parentheticals like "(heavy wk: 4×4 @80%…)" before matching
+  const n = name.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  // 3 min — heavy barbell compounds: CNS + ATP recovery critical for next set quality
+  if (/(squat|deadlift|bench press|overhead press|barbell overhead|barbell row)/.test(n)) return 180;
+
+  // 2.5 min — moderate / bodyweight compounds: demanding but less systemically taxing
+  if (/(pull.?up|weighted dip|\bdip\b|romanian deadlift|hip thrust|bulgarian|hack squat)/.test(n)) return 150;
+
+  // 2 min — machine compounds, unilateral pressing, moderate back work
+  if (/(lat pulldown|seated cable row|cable row|chest.supported row|leg press|incline dumbbell press|arnold press|shoulder press)/.test(n)) return 120;
+
+  // 90s — heavier isolation or demanding bodyweight finishers
+  if (/(upright row|lying leg curl|unilateral lat|push.?up)/.test(n)) return 90;
+
+  // 60s — standard isolation: curls, raises, flyes, pressdowns, core
+  if (/(curl|lateral raise|fl[iy]|pushdown|pressdown|extension|crunch|leg raise|face pull|shrug|calf raise|glute bridge|plank|ab rollout|hanging leg|cable overhead|rope face)/.test(n)) return 60;
+
+  return 90;
 }
 
 function fmt(secs: number): string {
