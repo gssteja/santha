@@ -29,8 +29,8 @@ export default function WorkoutScreen() {
   const {
     activeWorkout,
     activeVolume,
-    getPreviousSets,
-    isProgressiveOverload,
+    getPhaseSets,
+    getBest1RM,
     addExercise,
     removeExercise,
     swapExercise,
@@ -149,8 +149,8 @@ export default function WorkoutScreen() {
               key={`${ex.exId}-${ei}`}
               exercise={ex}
               exIdx={ei}
-              previousSets={getPreviousSets(ex.name)}
-              isOverload={isProgressiveOverload(ex.name, ex.sets)}
+              previousSets={getPhaseSets(ex.name, activeWorkout.week ?? 1, !!ex.waved)}
+              prevBest1RM={getBest1RM(ex.name)}
               onAddSet={() => addSet(ei)}
               onAddDropAfter={si => addDropSet(ei, si)}
               onRemoveSet={si => removeSet(ei, si)}

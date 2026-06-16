@@ -135,7 +135,7 @@ export default function TodayScreen() {
           ex.sets,
           repsToInput(ex.reps, week),
           seedSets,
-          { perSide, target, waved, heavy: waved && heavy, note: ex.note, drops },
+          { perSide, target, waved, heavy: waved && heavy, note: ex.note, drops, rpe: ex.rpe },
         ),
       );
     }

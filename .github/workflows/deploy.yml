@@ -38,9 +38,13 @@ jobs:
             APP="${REF%-v*}"; V="${REF##*-v}"
           fi
           if [ ! -d "apps/$APP" ]; then echo "::error::apps/$APP not found"; exit 1; fi
+          # Monotonic Android versionCode from semver: major*10000 + minor*100 + patch.
+          IFS=. read -r MA MI PA <<< "$V"
+          VC=$(( ${MA:-1} * 10000 + ${MI:-0} * 100 + ${PA:-0} ))
           echo "APP=$APP" >> "$GITHUB_ENV"
           echo "V=$V" >> "$GITHUB_ENV"
-          echo "Building $APP $V"
+          echo "VC=$VC" >> "$GITHUB_ENV"
+          echo "Building $APP $V (versionCode $VC)"
 
       - uses: actions/setup-node@v4
         with:
@@ -75,6 +79,7 @@ jobs:
           # first or the CMake configure step fails with "...codegen/jni not an existing directory".
           ( cd "apps/$APP/android" && ./gradlew generateCodegenArtifactsFromSchema --no-daemon )
           ( cd "apps/$APP/android" && ./gradlew assembleRelease --no-daemon \
+              -PVERSION_NAME="$V" -PVERSION_CODE="$VC" \
               -PUPLOAD_STORE_FILE=release.keystore \
               -PUPLOAD_STORE_PASSWORD="$UPLOAD_STORE_PASSWORD" \
               -PUPLOAD_KEY_ALIAS="$UPLOAD_KEY_ALIAS" \
