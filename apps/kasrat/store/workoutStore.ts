@@ -388,18 +388,28 @@ export function useWorkoutStore() {
     );
   }, [state.activeWorkout]);
 
-  // Check if exercise beat previous best volume
-  const isProgressiveOverload = useCallback(
-    (exerciseName: string, currentSets: WorkoutSet[]): boolean => {
-      const prev = getPreviousSets(exerciseName);
-      if (!prev.length) return false;
-      const prevVol = prev.reduce((a, s) => a + Math.max(0, parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
-      const currVol = currentSets
-        .filter(s => s.done)
-        .reduce((a, s) => a + Math.max(0, parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0);
-      return currVol > prevVol;
+  // Best estimated 1RM ever logged for an exercise (Epley over every logged set).
+  // Returns the top set's load/reps too, for display ("153 from 30×12"). History excludes
+  // the in-progress workout, so this is always the bar to beat.
+  const getBest1RM = useCallback(
+    (exerciseName: string): { orm: number; weight: string; reps: string } | null => {
+      let best: { orm: number; weight: string; reps: string } | null = null;
+      for (const record of state.history) {
+        const ex = record.exerciseData?.find(
+          e => e.name.toLowerCase() === exerciseName.toLowerCase()
+        );
+        if (!ex) continue;
+        for (const s of ex.sets) {
+          const w = Math.max(0, parseFloat(s.weight) || 0);
+          const r = parseInt(s.reps) || 0;
+          if (w <= 0 || r <= 0) continue;
+          const orm = epley1RM(w, r);
+          if (!best || orm > best.orm) best = { orm, weight: s.weight, reps: s.reps };
+        }
+      }
+      return best;
     },
-    [getPreviousSets]
+    [state.history]
   );
 
   const startWorkout = useCallback(
@@ -472,7 +482,7 @@ export function useWorkoutStore() {
     getPreviousSets,
     getPhaseSets,
     getSeedSets,
-    isProgressiveOverload,
+    getBest1RM,
     startWorkout,
     addExercise,
     removeExercise,
@@ -508,17 +518,24 @@ export function makeProgramExerciseBlock(
     waved?: boolean;
     note?: string;
     drops?: string[];
+    rpe?: string;
   },
 ): WorkoutExercise {
   const n = Math.max(1, setCount);
   const drops = opts?.drops ?? [];
   const sets: WorkoutSet[] = [];
+  // Previous session interleaves working + drop sets ([main, drop, main, drop, …]).
+  // Split them so a working set's weight is seeded from the previous *working* set
+  // (not the lighter drop that follows it), and each drop from its previous drop.
+  const prevMains = (prevSets ?? []).filter(s => !s.drop);
+  const prevDrops = (prevSets ?? []).filter(s => s.drop);
   for (let i = 0; i < n; i++) {
-    sets.push({ weight: prevSets?.[i]?.weight ?? prevSets?.[0]?.weight ?? '', reps, done: false });
+    sets.push({ weight: prevMains[i]?.weight ?? prevMains[0]?.weight ?? '', reps, done: false });
     // Each working set is followed by its prescribed drop(s) — lighter, no rest.
-    for (const dr of drops) {
-      sets.push({ weight: '', reps: dr, done: false, drop: true });
-    }
+    drops.forEach((dr, di) => {
+      const pd = prevDrops[i * drops.length + di] ?? prevDrops[di];
+      sets.push({ weight: pd?.weight ?? '', reps: dr, done: false, drop: true });
+    });
   }
   return {
     exId,
@@ -530,5 +547,6 @@ export function makeProgramExerciseBlock(
     heavy: opts?.heavy,
     waved: opts?.waved,
     note: opts?.note,
+    rpe: opts?.rpe,
   };
 }

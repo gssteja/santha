@@ -10,13 +10,15 @@ import {
   View,
 } from 'react-native';
 import { C, F } from '@/constants/theme';
+import { epley1RM } from '@/store/programs';
 import type { WorkoutExercise, WorkoutSet } from '@/types';
 
 type Props = {
   exercise: WorkoutExercise;
   exIdx: number;
   previousSets: WorkoutSet[];
-  isOverload: boolean;
+  /** Best estimated 1RM ever logged for this lift (the bar to beat), or null if new. */
+  prevBest1RM: { orm: number; weight: string; reps: string } | null;
   onAddSet: () => void;
   onAddDropAfter: (setIdx: number) => void;
   onRemoveSet: (setIdx: number) => void;
@@ -30,7 +32,7 @@ export function ExerciseBlock({
   exercise,
   exIdx,
   previousSets,
-  isOverload,
+  prevBest1RM,
   onAddSet,
   onAddDropAfter,
   onRemoveSet,
@@ -48,6 +50,17 @@ export function ExerciseBlock({
       .filter(s => s.done)
       .reduce((acc, s) => acc + Math.max(0, parseFloat(s.weight) || 0) * (parseInt(s.reps) || 0), 0) *
     (exercise.perSide ? 2 : 1);
+
+  // Best estimated 1RM from this session's logged sets — compared live against the
+  // all-time best (prevBest1RM) to flag a new 1RM as you lift.
+  const curBest1RM = exercise.sets.reduce((best, s) => {
+    if (!s.done) return best;
+    const w = Math.max(0, parseFloat(s.weight) || 0);
+    const r = parseInt(s.reps) || 0;
+    if (w <= 0 || r <= 0) return best;
+    return Math.max(best, epley1RM(w, r));
+  }, 0);
+  const beat1RM = curBest1RM > 0 && curBest1RM > (prevBest1RM?.orm ?? 0);
 
   // Number only the main (non-drop) sets; drop sets show ↓.
   let mainCount = 0;
@@ -75,14 +88,14 @@ export function ExerciseBlock({
         <View style={s.headerLeft}>
           <View style={s.nameRow}>
             <Text style={s.name}>{exercise.name}</Text>
-            {isOverload && (
+            {beat1RM && (
               <View style={s.poBadge}>
-                <Text style={s.poBadgeText}>↑ PR</Text>
+                <Text style={s.poBadgeText}>NEW 1RM</Text>
               </View>
             )}
           </View>
           <Text style={s.muscle}>{exercise.muscle}</Text>
-          {(exercise.waved || exercise.target || exercise.perSide) && (
+          {(exercise.waved || exercise.target || exercise.perSide || exercise.rpe) && (
             <View style={s.tagRow}>
               {exercise.waved && (
                 <Text style={[s.tag, exercise.heavy ? s.heavyTag : s.lightTag]}>
@@ -90,9 +103,21 @@ export function ExerciseBlock({
                 </Text>
               )}
               {exercise.target ? <Text style={[s.tag, s.targetTag]}>{exercise.target}</Text> : null}
+              {exercise.rpe ? <Text style={[s.tag, s.rpeTag]}>RPE {exercise.rpe}</Text> : null}
               {exercise.perSide ? <Text style={[s.tag, s.sideTag]}>PER SIDE</Text> : null}
             </View>
           )}
+          {/* Estimated 1RM — the bar to beat, and a live callout when you pass it. */}
+          {beat1RM ? (
+            <Text style={s.new1rmText}>
+              New estimated 1RM: {Math.round(curBest1RM)} lb
+              {prevBest1RM ? ` (was ${Math.round(prevBest1RM.orm)})` : ''}
+            </Text>
+          ) : prevBest1RM ? (
+            <Text style={s.best1rmText}>
+              Est. 1RM to beat: {Math.round(prevBest1RM.orm)} lb ({prevBest1RM.weight}×{prevBest1RM.reps})
+            </Text>
+          ) : null}
           {exerciseVolume > 0 && (
             <Text style={s.volText}>
               {exerciseVolume.toLocaleString()} lb volume{exercise.perSide ? ' (both sides)' : ''}
@@ -275,8 +300,11 @@ const s = StyleSheet.create({
   heavyTag: { color: C.accent, backgroundColor: 'rgba(99,102,241,0.15)' },
   lightTag: { color: C.text3, backgroundColor: C.surface2 },
   targetTag: { color: C.text2, backgroundColor: C.surface2, fontVariant: ['tabular-nums'] },
+  rpeTag: { color: '#e8b04b', backgroundColor: 'rgba(232,176,75,0.15)' },
   sideTag: { color: C.green, backgroundColor: 'rgba(34,197,94,0.13)' },
   volText: { color: C.text3, fontSize: F.xs, marginTop: 4 },
+  best1rmText: { color: C.text3, fontSize: F.xs, marginTop: 4, fontVariant: ['tabular-nums'] },
+  new1rmText: { color: C.green, fontSize: F.xs, fontWeight: '700', marginTop: 4, fontVariant: ['tabular-nums'] },
   note: {
     color: C.text3,
     fontSize: F.xs,

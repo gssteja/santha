@@ -21,6 +21,8 @@ export type WorkoutExercise = {
   waved?: boolean;
   /** Coaching cue from the program, shown under the exercise during the workout. */
   note?: string;
+  /** Target RPE from the program (e.g. "8", "7-8", "10"), shown as a chip. */
+  rpe?: string;
 };
 
 export type ActiveWorkout = {
