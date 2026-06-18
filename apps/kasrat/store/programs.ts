@@ -87,14 +87,14 @@ export const PROGRAMS: Program[] = [
           { name: 'Unilateral Lat Pulldown', rpe: '8-9', sets: 3, reps: '12 / side', muscle: 'Back', perSide: true, note: 'One arm at a time — fixes side-to-side asymmetry and adds loading variety. Pull the elbow down AND in (extension + adduction).' },
           { name: 'Giant Set C1: Rope Face Pull (rear-delt)', rpe: '9', sets: 3, reps: '15', muscle: 'Shoulders', note: 'Rear-delt version: externally rotate and pull the rope to your forehead, like hitting a rear double-biceps pose.' },
           { name: 'Giant Set C2: Cable Overhead Triceps Extension', rpe: '9', sets: 3, reps: '15', muscle: 'Triceps', note: 'Rope, both arms. Let the triceps stretch back at the bottom; squeeze to full elbow lockout. Cable keeps tension constant.' },
-          { name: 'Giant Set C3: Egyptian Lateral Raise', rpe: '9', sets: 3, reps: '15', muscle: 'Shoulders', perSide: true, note: 'Cable between the legs for constant tension; let it travel down for a deep stretch on the side delt.' },
+          { name: 'Machine Lateral Raise', rpe: '9', sets: 3, reps: '15', muscle: 'Shoulders', note: 'Both arms at once on the machine — the fixed path lets you chase the side delts hard. Lead with the elbows (not the hands), pause at the top, control the way down.' },
         ],
       },
       {
         name: 'Day 5 — Shoulders',
         exercises: [
           { name: 'Barbell Overhead Press (3×6 → +1 set/wk → 5×6, then +load)', rpe: '8', sets: 3, reps: '6', muscle: 'Shoulders', note: 'Progression: 3×6, add a set each week to 5×6 by week 3, then week 4 drop back to 3×6 with more weight. Push through the outside of your hands (cues abduction); elbows ~45° tucked at the bottom, flare as the bar clears your face. Dumbbells fine if comfier.' },
-          { name: 'Dumbbell Lateral Raise', rpe: '9-10', sets: 3, reps: '15', muscle: 'Shoulders', perSide: true, note: 'Contracted-position loading = low muscle damage, so push close to failure. (Day 4 used the stretch-loaded cable version — alternated on purpose.)' },
+          { name: 'Dumbbell Lateral Raise', rpe: '9-10', sets: 3, reps: '15', muscle: 'Shoulders', perSide: true, note: 'Contracted-position loading = low muscle damage, so push close to failure.' },
           { name: 'Seated Cable Row', rpe: '8-9', sets: 3, reps: '12', muscle: 'Back', note: 'Lat-dominant: pull elbows down and tucked to your sides (drop the weight a bit). Lean forward slightly on the eccentric for more lat stretch.' },
           { name: 'Lying Leg Curl', rpe: '8-9', sets: 3, reps: '12', muscle: 'Hamstrings', note: 'Only leg work today. Keep the pads pinned against your ankles — squeeze the hamstrings, don’t heave with momentum. Posterior chain may still be tired from Day 4 deadlifts.' },
           { name: 'Dumbbell Concentration Curl', rpe: '9-10', sets: 3, reps: '12', muscle: 'Biceps', perSide: true, note: 'Elbow pinned to the leg. Supinate by driving through the pinky (neutral at bottom → palm up at top); loose grip so the forearm doesn’t take over.' },
@@ -148,15 +148,9 @@ export function repSequence(reps: string, week: number): string[] {
 
 // Epley 1RM estimate, and inverse — used to project a load from one rep target
 // to another (e.g. heavy-wk top set → light-wk working weight for a waved lift).
-export function epley1RM(weight: number, reps: number): number {
-  if (reps <= 0) return weight;
-  return weight * (1 + reps / 30);
-}
-
-export function weightForReps(orm: number, reps: number): number {
-  if (reps <= 0) return orm;
-  return orm / (1 + reps / 30);
-}
+// Canonical implementations now live in the pure engine; re-exported here so
+// existing imports (`@/store/programs`) keep working unchanged.
+export { epley1RM, weightForReps } from '@/engine/strength';
 
 // TODO(remove-after-d5): Delete this table + starterWeight() + the getSeedSets call
 // in workoutStore once Day 4 and Day 5 have been logged. One-shot prefill so the
@@ -172,7 +166,7 @@ const STARTER_WEIGHTS: Record<string, number> = {
   'unilateral lat pulldown': 50,
   'giant set c1: rope face pull (rear-delt)': 30,
   'giant set c2: cable overhead triceps extension': 40,
-  'giant set c3: egyptian lateral raise': 15,
+  'machine lateral raise': 30,
   // Day 5
   'barbell overhead press (3×6 → +1 set/wk → 5×6, then +load)': 95,
   'dumbbell lateral raise': 15,

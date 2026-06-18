@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   Modal,
   Pressable,
   StyleSheet,
@@ -9,7 +10,12 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { C, F } from '@/constants/theme';
+import { C, F, FONT, HEAT, heatForFraction, heatForRpe } from '@/constants/theme';
+import { ForgedNumber } from '@/components/ui/ForgedNumber';
+import { HeatDots } from '@/components/ui/Heat';
+import { Surface } from '@/components/ui/Surface';
+import { haptics } from '@/components/ui/haptics';
+import { PlateCalculator } from '@/components/PlateCalculator';
 import { epley1RM } from '@/store/programs';
 import type { WorkoutExercise, WorkoutSet } from '@/types';
 
@@ -19,6 +25,8 @@ type Props = {
   previousSets: WorkoutSet[];
   /** Best estimated 1RM ever logged for this lift (the bar to beat), or null if new. */
   prevBest1RM: { orm: number; weight: string; reps: string } | null;
+  /** Adaptive load pick for the next working set (from the progression engine), or null. */
+  suggested?: { weight: number; reason: string } | null;
   onAddSet: () => void;
   onAddDropAfter: (setIdx: number) => void;
   onRemoveSet: (setIdx: number) => void;
@@ -33,6 +41,7 @@ export function ExerciseBlock({
   exIdx,
   previousSets,
   prevBest1RM,
+  suggested,
   onAddSet,
   onAddDropAfter,
   onRemoveSet,
@@ -44,6 +53,7 @@ export function ExerciseBlock({
   const [swapping, setSwapping] = useState(false);
   const [swapName, setSwapName] = useState('');
   const [menuSet, setMenuSet] = useState<number | null>(null); // set index whose action menu is open
+  const [plateWeight, setPlateWeight] = useState<number | null>(null); // weight whose plate calc is open
 
   const exerciseVolume =
     exercise.sets
@@ -61,6 +71,29 @@ export function ExerciseBlock({
     return Math.max(best, epley1RM(w, r));
   }, 0);
   const beat1RM = curBest1RM > 0 && curBest1RM > (prevBest1RM?.orm ?? 0);
+
+  // How hot the e1RM runs: live best as a fraction of the bar to beat (white-hot once passed).
+  const ormFraction = prevBest1RM?.orm ? curBest1RM / prevBest1RM.orm : beat1RM ? 1 : 0;
+  const ormHeat = beat1RM ? HEAT.white : heatForFraction(ormFraction);
+  const heroOrm = beat1RM ? curBest1RM : prevBest1RM?.orm ?? 0;
+
+  // One-shot PR bloom: fires once each time the live 1RM crosses the all-time bar.
+  const bloom = useRef(new Animated.Value(0)).current;
+  const wasBeat = useRef(false);
+  useEffect(() => {
+    if (beat1RM && !wasBeat.current) {
+      wasBeat.current = true;
+      haptics.pr();
+      bloom.setValue(0);
+      Animated.sequence([
+        Animated.timing(bloom, { toValue: 1, duration: 260, useNativeDriver: true }),
+        Animated.timing(bloom, { toValue: 0, duration: 620, useNativeDriver: true }),
+      ]).start();
+    } else if (!beat1RM) {
+      wasBeat.current = false;
+    }
+  }, [beat1RM]);
+  const bloomScale = bloom.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
 
   // Number only the main (non-drop) sets; drop sets show ↓.
   let mainCount = 0;
@@ -81,21 +114,27 @@ export function ExerciseBlock({
     }
   }
 
+  // Logging a set is the tactile beat of the workout — give it a tap.
+  function handleToggle(si: number) {
+    haptics.tap();
+    onToggleSet(si);
+  }
+
+  function openPlates(weight: string) {
+    const w = parseFloat(weight) || 0;
+    setPlateWeight(w);
+  }
+
   return (
-    <View style={s.block}>
+    <Surface style={s.block}>
       {/* Header */}
       <View style={s.header}>
         <View style={s.headerLeft}>
           <View style={s.nameRow}>
             <Text style={s.name}>{exercise.name}</Text>
-            {beat1RM && (
-              <View style={s.poBadge}>
-                <Text style={s.poBadgeText}>NEW 1RM</Text>
-              </View>
-            )}
           </View>
           <Text style={s.muscle}>{exercise.muscle}</Text>
-          {(exercise.waved || exercise.target || exercise.perSide || exercise.rpe) && (
+          {(exercise.waved || exercise.target || exercise.perSide || exercise.rpe || suggested) && (
             <View style={s.tagRow}>
               {exercise.waved && (
                 <Text style={[s.tag, exercise.heavy ? s.heavyTag : s.lightTag]}>
@@ -103,36 +142,81 @@ export function ExerciseBlock({
                 </Text>
               )}
               {exercise.target ? <Text style={[s.tag, s.targetTag]}>{exercise.target}</Text> : null}
-              {exercise.rpe ? <Text style={[s.tag, s.rpeTag]}>RPE {exercise.rpe}</Text> : null}
               {exercise.perSide ? <Text style={[s.tag, s.sideTag]}>PER SIDE</Text> : null}
+              {exercise.rpe ? (
+                <View style={[s.tag, s.rpeTag, { borderColor: heatForRpe(exercise.rpe) }]}>
+                  <Text style={[s.rpeTagText, { color: heatForRpe(exercise.rpe) }]}>RPE {exercise.rpe}</Text>
+                  <HeatDots rpe={exercise.rpe} dotSize={5} gap={2} />
+                </View>
+              ) : null}
             </View>
           )}
-          {/* Estimated 1RM — the bar to beat, and a live callout when you pass it. */}
-          {beat1RM ? (
-            <Text style={s.new1rmText}>
-              New estimated 1RM: {Math.round(curBest1RM)} lb
-              {prevBest1RM ? ` (was ${Math.round(prevBest1RM.orm)})` : ''}
-            </Text>
-          ) : prevBest1RM ? (
-            <Text style={s.best1rmText}>
-              Est. 1RM to beat: {Math.round(prevBest1RM.orm)} lb ({prevBest1RM.weight}×{prevBest1RM.reps})
-            </Text>
+
+          {/* Suggested load from the progression engine — "↑ {weight}" with a muted reason. */}
+          {suggested ? (
+            <Pressable
+              style={s.suggest}
+              onPress={() => openPlates(String(suggested.weight))}
+              accessibilityLabel={`Suggested load ${suggested.weight} pounds. ${suggested.reason}. Tap for plates.`}
+            >
+              <Text style={s.suggestWeight}>↑ {suggested.weight}</Text>
+              <Text style={s.suggestReason} numberOfLines={1}>{suggested.reason}</Text>
+            </Pressable>
           ) : null}
-          {exerciseVolume > 0 && (
-            <Text style={s.volText}>
-              {exerciseVolume.toLocaleString()} lb volume{exercise.perSide ? ' (both sides)' : ''}
-            </Text>
-          )}
         </View>
+
         <View style={s.headerActions}>
-          <TouchableOpacity style={s.iconBtn} onPress={() => setSwapping(v => !v)}>
+          <TouchableOpacity
+            style={s.iconBtn}
+            onPress={() => setSwapping(v => !v)}
+            accessibilityLabel="Swap exercise"
+          >
             <Text style={s.iconBtnText}>⇄</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.iconBtn} onPress={handleRemove}>
+          <TouchableOpacity
+            style={s.iconBtn}
+            onPress={handleRemove}
+            accessibilityLabel="Remove exercise"
+          >
             <Text style={s.iconBtnText}>✕</Text>
           </TouchableOpacity>
         </View>
       </View>
+
+      {/* Estimated 1RM — forged hero numeral; the bar to beat, or white-hot when passed. */}
+      {heroOrm > 0 ? (
+        <Animated.View style={[s.ormRow, { transform: [{ scale: bloomScale }] }]}>
+          <ForgedNumber
+            value={Math.round(heroOrm)}
+            size={34}
+            color={ormHeat}
+            glow={beat1RM}
+            glowColor={HEAT.white}
+            glowIntensity={beat1RM ? 1 : 0}
+            textStyle={s.ormNum}
+          />
+          <View style={s.ormMeta}>
+            <Text style={[s.ormLabel, beat1RM && { color: HEAT.white }]}>
+              {beat1RM ? 'Hottest yet' : 'Beat'}
+            </Text>
+            <Text style={s.ormSub}>
+              {beat1RM
+                ? prevBest1RM
+                  ? `was ${Math.round(prevBest1RM.orm)} lb`
+                  : 'est. 1RM · lb'
+                : prevBest1RM
+                ? `${prevBest1RM.weight}×${prevBest1RM.reps} · lb`
+                : 'lb'}
+            </Text>
+          </View>
+        </Animated.View>
+      ) : null}
+
+      {exerciseVolume > 0 && (
+        <Text style={s.volText}>
+          {exerciseVolume.toLocaleString()} lb volume{exercise.perSide ? ' (both sides)' : ''}
+        </Text>
+      )}
 
       {/* Swap input */}
       {swapping && (
@@ -179,17 +263,34 @@ export function ExerciseBlock({
           ? `${previousSets[0].weight || '—'}×${previousSets[0].reps || '—'}`
           : '—';
 
+        const canPlate = !set.drop && (parseFloat(set.weight) || 0) > 0;
+
         return (
           <View key={si} style={[s.setRow, set.done && s.setRowDone, set.drop && s.dropRow]}>
             <TouchableOpacity
               style={[s.setNum, set.done && s.setNumDone, set.drop && !set.done && s.dropNum]}
               onPress={() => setMenuSet(si)}
+              accessibilityLabel={`Set ${setLabels[si]} options`}
             >
               <Text style={[s.setNumText, set.done && s.setNumTextDone]}>
                 {set.done ? '✓' : setLabels[si]}
               </Text>
             </TouchableOpacity>
-            <Text style={s.prevText}>{prevLabel}</Text>
+
+            <View style={s.prevCell}>
+              <Text style={s.prevText}>{prevLabel}</Text>
+              {canPlate ? (
+                <TouchableOpacity
+                  style={s.plateChip}
+                  onPress={() => openPlates(set.weight)}
+                  hitSlop={8}
+                  accessibilityLabel={`Plate breakdown for ${set.weight} pounds`}
+                >
+                  <Text style={s.plateChipText}>🔩</Text>
+                </TouchableOpacity>
+              ) : null}
+            </View>
+
             <TextInput
               style={[s.input, set.done && s.inputDone]}
               keyboardType="decimal-pad"
@@ -210,7 +311,8 @@ export function ExerciseBlock({
             />
             <TouchableOpacity
               style={[s.logBtn, set.done && s.logBtnDone]}
-              onPress={() => onToggleSet(si)}
+              onPress={() => handleToggle(si)}
+              accessibilityLabel={set.done ? `Unlog set ${setLabels[si]}` : `Log set ${setLabels[si]}`}
             >
               <Text style={[s.logBtnText, set.done && s.logBtnTextDone]}>
                 {set.done ? '✓' : 'Log'}
@@ -262,7 +364,14 @@ export function ExerciseBlock({
           </View>
         </Pressable>
       </Modal>
-    </View>
+
+      {/* Tactile plate calculator for a tapped set / suggested load */}
+      <PlateCalculator
+        visible={plateWeight !== null}
+        weight={plateWeight ?? 0}
+        onClose={() => setPlateWeight(null)}
+      />
+    </Surface>
   );
 }
 
@@ -270,10 +379,6 @@ const s = StyleSheet.create({
   block: {
     marginHorizontal: 14,
     marginBottom: 12,
-    backgroundColor: C.surface,
-    borderWidth: 1,
-    borderColor: C.border,
-    borderRadius: 14,
     overflow: 'hidden',
   },
   header: {
@@ -285,26 +390,59 @@ const s = StyleSheet.create({
   },
   headerLeft: { flex: 1 },
   nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
-  name: { color: C.text, fontSize: F.base, fontWeight: '700', flexShrink: 1 },
-  muscle: { color: C.accent, fontSize: F.xs, fontWeight: '600', marginTop: 2 },
-  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 5 },
+  name: { color: C.text, fontSize: F.base, fontFamily: FONT.xbold, flexShrink: 1 },
+  muscle: { color: C.accent, fontSize: F.xs, fontFamily: FONT.semi, marginTop: 2 },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6, alignItems: 'center' },
   tag: {
     fontSize: F.xs - 1,
-    fontWeight: '800',
+    fontFamily: FONT.bold,
     letterSpacing: 0.5,
     borderRadius: 5,
     paddingVertical: 2,
     paddingHorizontal: 6,
     overflow: 'hidden',
   },
-  heavyTag: { color: C.accent, backgroundColor: 'rgba(99,102,241,0.15)' },
+  heavyTag: { color: HEAT.hot, backgroundColor: 'rgba(255,94,26,0.15)' },
   lightTag: { color: C.text3, backgroundColor: C.surface2 },
   targetTag: { color: C.text2, backgroundColor: C.surface2, fontVariant: ['tabular-nums'] },
-  rpeTag: { color: '#e8b04b', backgroundColor: 'rgba(232,176,75,0.15)' },
+  rpeTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    borderWidth: 1,
+    backgroundColor: 'rgba(245,158,11,0.08)',
+    paddingVertical: 2,
+    paddingHorizontal: 7,
+  },
+  rpeTagText: { fontSize: F.xs - 1, fontFamily: FONT.bold, letterSpacing: 0.5, fontVariant: ['tabular-nums'] },
   sideTag: { color: C.green, backgroundColor: 'rgba(34,197,94,0.13)' },
-  volText: { color: C.text3, fontSize: F.xs, marginTop: 4 },
-  best1rmText: { color: C.text3, fontSize: F.xs, marginTop: 4, fontVariant: ['tabular-nums'] },
-  new1rmText: { color: C.green, fontSize: F.xs, fontWeight: '700', marginTop: 4, fontVariant: ['tabular-nums'] },
+  suggest: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 8,
+    alignSelf: 'flex-start',
+    marginTop: 8,
+    backgroundColor: 'rgba(245,158,11,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(245,158,11,0.3)',
+    borderRadius: 8,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+  },
+  suggestWeight: { color: C.accent, fontSize: F.sm, fontFamily: FONT.black, fontVariant: ['tabular-nums'] },
+  suggestReason: { color: C.text3, fontSize: F.xs, fontFamily: FONT.regular, flexShrink: 1 },
+  ormRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingHorizontal: 14,
+    paddingBottom: 8,
+  },
+  ormNum: { lineHeight: 36 },
+  ormMeta: { justifyContent: 'center' },
+  ormLabel: { color: C.text2, fontSize: F.xs, fontFamily: FONT.bold, letterSpacing: 1, textTransform: 'uppercase' },
+  ormSub: { color: C.text3, fontSize: F.xs, fontFamily: FONT.regular, marginTop: 1, fontVariant: ['tabular-nums'] },
+  volText: { color: C.text3, fontSize: F.xs, fontFamily: FONT.regular, paddingHorizontal: 14, paddingBottom: 4 },
   note: {
     color: C.text3,
     fontSize: F.xs,
@@ -313,18 +451,9 @@ const s = StyleSheet.create({
     paddingHorizontal: 14,
     paddingBottom: 10,
   },
-  poBadge: {
-    backgroundColor: 'rgba(34,197,94,0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(34,197,94,0.3)',
-    borderRadius: 6,
-    paddingVertical: 2,
-    paddingHorizontal: 6,
-  },
-  poBadgeText: { color: C.green, fontSize: F.xs, fontWeight: '700' },
   headerActions: { flexDirection: 'row', gap: 4 },
-  iconBtn: { padding: 6 },
-  iconBtnText: { color: C.text3, fontSize: 14 },
+  iconBtn: { padding: 6, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
+  iconBtnText: { color: C.text3, fontSize: 16 },
   swapRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -342,6 +471,7 @@ const s = StyleSheet.create({
     paddingVertical: 7,
     color: C.text,
     fontSize: F.sm,
+    fontFamily: FONT.medium,
   },
   swapBtn: {
     backgroundColor: C.accent,
@@ -349,16 +479,16 @@ const s = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 7,
   },
-  swapBtnText: { color: '#fff', fontSize: F.sm, fontWeight: '700' },
+  swapBtnText: { color: '#1a1206', fontSize: F.sm, fontFamily: FONT.bold },
   cancelBtn: { paddingHorizontal: 8, paddingVertical: 7 },
-  cancelBtnText: { color: C.text3, fontSize: F.sm },
+  cancelBtnText: { color: C.text3, fontSize: F.sm, fontFamily: FONT.medium },
   colHeader: {
     flexDirection: 'row',
     paddingHorizontal: 14,
     paddingBottom: 4,
     gap: 6,
   },
-  colText: { color: C.text3, fontSize: F.xs, fontWeight: '700', textTransform: 'uppercase' },
+  colText: { color: C.text3, fontSize: F.xs, fontFamily: FONT.bold, textTransform: 'uppercase' },
   colSet: { width: 28 },
   colPrev: { flex: 1.2, textAlign: 'center' },
   colInput: { flex: 1, textAlign: 'center' },
@@ -370,7 +500,7 @@ const s = StyleSheet.create({
     paddingVertical: 5,
     gap: 6,
   },
-  setRowDone: { backgroundColor: 'rgba(34,197,94,0.05)' },
+  setRowDone: { backgroundColor: 'rgba(245,158,11,0.06)' },
   dropRow: { paddingLeft: 30 },
   setNum: {
     width: 28,
@@ -380,17 +510,30 @@ const s = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  setNumDone: { backgroundColor: C.green },
-  dropNum: { backgroundColor: 'rgba(232,176,75,0.18)' },
-  setNumText: { color: C.text2, fontSize: F.xs, fontWeight: '700' },
-  setNumTextDone: { color: '#000' },
-  prevText: {
+  setNumDone: { backgroundColor: C.accent },
+  dropNum: { backgroundColor: 'rgba(245,158,11,0.18)' },
+  setNumText: { color: C.text2, fontSize: F.xs, fontFamily: FONT.bold },
+  setNumTextDone: { color: '#1a1206' },
+  prevCell: {
     flex: 1.2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+  },
+  prevText: {
     color: C.text3,
     fontSize: F.xs,
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
+    fontFamily: FONT.medium,
   },
+  plateChip: {
+    paddingHorizontal: 2,
+    minHeight: 28,
+    justifyContent: 'center',
+  },
+  plateChipText: { fontSize: 12 },
   input: {
     flex: 1,
     backgroundColor: C.surface2,
@@ -400,7 +543,7 @@ const s = StyleSheet.create({
     paddingVertical: 7,
     color: C.text,
     fontSize: F.sm,
-    fontWeight: '600',
+    fontFamily: FONT.semi,
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
   },
@@ -415,11 +558,11 @@ const s = StyleSheet.create({
     alignItems: 'center',
   },
   logBtnDone: {
-    backgroundColor: 'rgba(34,197,94,0.15)',
-    borderColor: 'rgba(34,197,94,0.3)',
+    backgroundColor: 'rgba(245,158,11,0.18)',
+    borderColor: 'rgba(245,158,11,0.4)',
   },
-  logBtnText: { color: C.text2, fontSize: F.xs, fontWeight: '700' },
-  logBtnTextDone: { color: C.green },
+  logBtnText: { color: C.text2, fontSize: F.xs, fontFamily: FONT.bold },
+  logBtnTextDone: { color: C.accent },
   addSetBtn: {
     margin: 10,
     borderWidth: 1,
@@ -429,7 +572,7 @@ const s = StyleSheet.create({
     paddingVertical: 8,
     alignItems: 'center',
   },
-  addSetText: { color: C.text3, fontSize: F.sm, fontWeight: '600' },
+  addSetText: { color: C.text3, fontSize: F.sm, fontFamily: FONT.semi },
   menuOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.6)',
@@ -448,7 +591,7 @@ const s = StyleSheet.create({
   menuTitle: {
     color: C.text3,
     fontSize: F.xs,
-    fontWeight: '700',
+    fontFamily: FONT.bold,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
     paddingHorizontal: 18,
@@ -456,8 +599,8 @@ const s = StyleSheet.create({
     paddingBottom: 6,
   },
   menuItem: { paddingVertical: 14, paddingHorizontal: 18 },
-  menuItemText: { color: C.text, fontSize: F.base, fontWeight: '600' },
-  menuRemove: { color: '#ef4444' },
+  menuItemText: { color: C.text, fontSize: F.base, fontFamily: FONT.semi },
+  menuRemove: { color: C.red },
   menuCancel: { paddingVertical: 12, paddingHorizontal: 18, alignItems: 'center', marginTop: 2 },
-  menuCancelText: { color: C.text3, fontSize: F.sm, fontWeight: '600' },
+  menuCancelText: { color: C.text3, fontSize: F.sm, fontFamily: FONT.semi },
 });

@@ -41,6 +41,13 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <TabGlyph glyph="≡" color={color} />,
         }}
       />
+      <Tabs.Screen
+        name="body"
+        options={{
+          title: 'Body',
+          tabBarIcon: ({ color }) => <TabGlyph glyph="⬡" color={color} />,
+        }}
+      />
       <Tabs.Screen name="exercises" options={{ href: null }} />
     </Tabs>
   );

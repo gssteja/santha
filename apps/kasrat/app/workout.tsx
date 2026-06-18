@@ -12,10 +12,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExerciseBlock } from '@/components/ExerciseBlock';
 import { ExercisePicker } from '@/components/ExercisePicker';
 import { RestTimer, restForExercise } from '@/components/RestTimer';
+import { ForgedNumber } from '@/components/ui/ForgedNumber';
 import { useStore } from '@/store/StoreContext';
+import { useMetrics } from '@/store/MetricsContext';
 import { makeExerciseBlock } from '@/store/workoutStore';
+import { suggestLoad } from '@/engine/progression';
 import type { Exercise } from '@/types';
-import { C, F } from '@/constants/theme';
+import { C, F, FONT, HEAT } from '@/constants/theme';
 
 function fmtTime(secs: number) {
   const m = Math.floor(secs / 60);
@@ -29,6 +32,7 @@ export default function WorkoutScreen() {
   const {
     activeWorkout,
     activeVolume,
+    history,
     getPhaseSets,
     getBest1RM,
     addExercise,
@@ -42,6 +46,7 @@ export default function WorkoutScreen() {
     finishWorkout,
     discardWorkout,
   } = useStore();
+  const { todayReadiness } = useMetrics();
 
   const [elapsed, setElapsed] = useState(0);
   const [showPicker, setShowPicker] = useState(false);
@@ -108,16 +113,34 @@ export default function WorkoutScreen() {
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.workoutName}>{activeWorkout.name}</Text>
+          <Text style={styles.workoutName} numberOfLines={1}>{activeWorkout.name}</Text>
           <View style={styles.headerStats}>
-            <Text style={styles.timer}>{fmtTime(elapsed)}</Text>
+            <View style={styles.stat}>
+              <ForgedNumber value={fmtTime(elapsed)} size={26} color={C.text2} textStyle={styles.statNum} />
+              <Text style={styles.statLabel}>ELAPSED</Text>
+            </View>
             {activeVolume > 0 && (
-              <Text style={styles.volume}>{activeVolume.toLocaleString()} lb</Text>
+              <View style={styles.stat}>
+                <ForgedNumber
+                  value={activeVolume.toLocaleString()}
+                  size={26}
+                  color={C.accent}
+                  glow
+                  glowColor={HEAT.warm}
+                  glowIntensity={0.5}
+                  textStyle={styles.statNum}
+                />
+                <Text style={styles.statLabel}>LB MOVED</Text>
+              </View>
             )}
           </View>
         </View>
         <View style={styles.headerActions}>
-          <TouchableOpacity style={styles.discardBtn} onPress={handleDiscard}>
+          <TouchableOpacity
+            style={styles.discardBtn}
+            onPress={handleDiscard}
+            accessibilityLabel="Discard workout"
+          >
             <Text style={styles.discardText}>✕</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.finishBtn} onPress={handleFinish}>
@@ -141,25 +164,36 @@ export default function WorkoutScreen() {
       >
         {activeWorkout.exercises.length === 0 ? (
           <Text style={styles.emptyHint}>
-            No exercises yet.{'\n'}Add one below.
+            No exercises yet.{'\n'}Light it up.
           </Text>
         ) : (
-          activeWorkout.exercises.map((ex, ei) => (
-            <ExerciseBlock
-              key={`${ex.exId}-${ei}`}
-              exercise={ex}
-              exIdx={ei}
-              previousSets={getPhaseSets(ex.name, activeWorkout.week ?? 1, !!ex.waved)}
-              prevBest1RM={getBest1RM(ex.name)}
-              onAddSet={() => addSet(ei)}
-              onAddDropAfter={si => addDropSet(ei, si)}
-              onRemoveSet={si => removeSet(ei, si)}
-              onUpdateSet={(si, field, val) => updateSet(ei, si, field, val)}
-              onToggleSet={si => handleToggleSet(ei, si)}
-              onRemove={() => removeExercise(ei)}
-              onSwap={name => swapExercise(ei, name)}
-            />
-          ))
+          activeWorkout.exercises.map((ex, ei) => {
+            const suggested = suggestLoad({
+              history,
+              name: ex.name,
+              targetReps: parseInt(ex.sets[0]?.reps) || 0,
+              week: activeWorkout.week ?? 1,
+              waved: !!ex.waved,
+              readiness: todayReadiness?.score ?? 0,
+            });
+            return (
+              <ExerciseBlock
+                key={`${ex.exId}-${ei}`}
+                exercise={ex}
+                exIdx={ei}
+                previousSets={getPhaseSets(ex.name, activeWorkout.week ?? 1, !!ex.waved)}
+                prevBest1RM={getBest1RM(ex.name)}
+                suggested={suggested}
+                onAddSet={() => addSet(ei)}
+                onAddDropAfter={si => addDropSet(ei, si)}
+                onRemoveSet={si => removeSet(ei, si)}
+                onUpdateSet={(si, field, val) => updateSet(ei, si, field, val)}
+                onToggleSet={si => handleToggleSet(ei, si)}
+                onRemove={() => removeExercise(ei)}
+                onSwap={name => swapExercise(ei, name)}
+              />
+            );
+          })
         )}
 
         <TouchableOpacity style={styles.addExBtn} onPress={() => setShowPicker(true)}>
@@ -189,28 +223,36 @@ const styles = StyleSheet.create({
     backgroundColor: C.bg,
   },
   headerLeft: { flex: 1 },
-  workoutName: { color: C.text, fontSize: F.lg, fontWeight: '700' },
-  headerStats: { flexDirection: 'row', alignItems: 'center', gap: 12, marginTop: 2 },
-  timer: { color: C.text2, fontSize: F.sm, fontVariant: ['tabular-nums'] },
-  volume: { color: C.accent, fontSize: F.sm, fontWeight: '600' },
+  workoutName: { color: C.text, fontSize: F.lg, fontFamily: FONT.xbold },
+  headerStats: { flexDirection: 'row', alignItems: 'flex-end', gap: 22, marginTop: 6 },
+  stat: { alignItems: 'flex-start' },
+  statNum: { lineHeight: 28 },
+  statLabel: {
+    color: C.text3,
+    fontSize: F.xs - 1,
+    fontFamily: FONT.bold,
+    letterSpacing: 1.5,
+    marginTop: 1,
+  },
   headerActions: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  discardBtn: { padding: 8 },
+  discardBtn: { padding: 8, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   discardText: { color: C.text3, fontSize: 16 },
   finishBtn: {
-    backgroundColor: C.green,
+    backgroundColor: C.accent,
     borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
   },
-  finishText: { color: '#000', fontSize: F.sm, fontWeight: '800' },
+  finishText: { color: '#1a1206', fontSize: F.sm, fontFamily: FONT.black },
   scroll: { flex: 1 },
   scrollContent: { paddingTop: 10, paddingBottom: 120 },
   emptyHint: {
     color: C.text3,
     fontSize: F.base,
+    fontFamily: FONT.medium,
     textAlign: 'center',
     marginTop: 60,
-    lineHeight: 24,
+    lineHeight: 26,
   },
   addExBtn: {
     marginHorizontal: 16,
@@ -222,5 +264,5 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     alignItems: 'center',
   },
-  addExText: { color: C.text2, fontSize: F.base, fontWeight: '600' },
+  addExText: { color: C.text2, fontSize: F.base, fontFamily: FONT.semi },
 });

@@ -11,7 +11,9 @@ import {
   Vibration,
   View,
 } from 'react-native';
-import { C, F } from '@/constants/theme';
+import { LinearGradient } from 'expo-linear-gradient';
+import { C, F, FONT, HEAT, heatForFraction } from '@/constants/theme';
+import { haptics } from '@/components/ui/haptics';
 
 // Play the rest-end sound when foregrounded but suppress the banner — the inline
 // timer strip already shows progress, so a popup on top of it would be redundant.
@@ -114,8 +116,8 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
       await Notifications.scheduleNotificationAsync({
         identifier: REST_NOTIF_ID,
         content: {
-          title: 'Rest done',
-          body: 'Time for your next set.',
+          title: 'Rested',
+          body: 'Hot — next set.',
           sound: 'default',
           // iOS: bypass Focus, ring even in silent (Time Sensitive entitlement).
           interruptionLevel: 'timeSensitive',
@@ -150,6 +152,7 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
       if (intervalRef.current) clearInterval(intervalRef.current);
       firedRef.current = true; // completed naturally — let the scheduled ding stand
       Vibration.vibrate(400);
+      haptics.done();
       onDismiss();
     }
   }
@@ -210,30 +213,41 @@ export function RestTimer({ visible, seconds, exerciseName, onDismiss }: Props) 
 
   if (!visible) return null;
 
+  // The ember cools as you rest: hot at the start of the set, dull as time burns down.
+  const frac = target > 0 ? remaining / target : 0;
+  const ember = heatForFraction(frac);
+
   return (
     <Animated.View style={[s.bar, { opacity }]} pointerEvents="box-none">
       <View style={s.row}>
         <View style={s.left}>
-          <Text style={s.label}>REST</Text>
+          <Text style={[s.label, { color: ember }]}>COOLING</Text>
           {exerciseName ? (
             <Text style={s.exName} numberOfLines={1}>{exerciseName}</Text>
           ) : null}
         </View>
-        <Text style={s.countdown}>{fmt(remaining)}</Text>
+        <Text style={[s.countdown, { color: ember }]}>{fmt(remaining)}</Text>
         <View style={s.actions}>
-          <TouchableOpacity style={s.btn} onPress={() => addTime(-15)}>
+          <TouchableOpacity style={s.btn} onPress={() => addTime(-15)} accessibilityLabel="Subtract 15 seconds">
             <Text style={s.btnText}>−15</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={s.btn} onPress={() => addTime(15)}>
+          <TouchableOpacity style={s.btn} onPress={() => addTime(15)} accessibilityLabel="Add 15 seconds">
             <Text style={s.btnText}>+15</Text>
           </TouchableOpacity>
-          <TouchableOpacity style={[s.btn, s.skipBtn]} onPress={handleSkip}>
+          <TouchableOpacity style={[s.btn, s.skipBtn]} onPress={handleSkip} accessibilityLabel="Skip rest">
             <Text style={[s.btnText, s.skipText]}>Skip</Text>
           </TouchableOpacity>
         </View>
       </View>
       <View style={s.track}>
-        <Animated.View style={[s.fill, { width: widthPct }]} />
+        <Animated.View style={[s.fill, { width: widthPct, shadowColor: ember }]}>
+          <LinearGradient
+            colors={[ember + '66', ember] as const}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={s.fillGrad}
+          />
+        </Animated.View>
       </View>
     </Animated.View>
   );
@@ -253,16 +267,17 @@ const s = StyleSheet.create({
   label: {
     color: C.accent,
     fontSize: F.xs,
-    fontWeight: '800',
-    letterSpacing: 2,
+    fontFamily: FONT.black,
+    letterSpacing: 2.5,
   },
-  exName: { color: C.text3, fontSize: F.xs, marginTop: 1 },
+  exName: { color: C.text3, fontSize: F.xs, fontFamily: FONT.medium, marginTop: 1 },
   countdown: {
     color: C.text,
-    fontSize: F.xl,
-    fontWeight: '700',
+    fontSize: F.xxl,
+    fontFamily: FONT.black,
     fontVariant: ['tabular-nums'],
-    minWidth: 56,
+    letterSpacing: -0.5,
+    minWidth: 64,
     textAlign: 'right',
   },
   actions: { flexDirection: 'row', gap: 6 },
@@ -271,18 +286,27 @@ const s = StyleSheet.create({
     borderWidth: 1,
     borderColor: C.border,
     borderRadius: 8,
-    paddingVertical: 6,
-    paddingHorizontal: 9,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    minHeight: 44,
+    justifyContent: 'center',
   },
-  btnText: { color: C.text, fontSize: F.xs, fontWeight: '700' },
+  btnText: { color: C.text, fontSize: F.xs, fontFamily: FONT.bold },
   skipBtn: { backgroundColor: 'transparent', borderColor: C.text3 },
   skipText: { color: C.text3 },
   track: {
-    height: 3,
+    height: 4,
     backgroundColor: C.surface2,
     marginTop: 8,
     marginHorizontal: -14,
     overflow: 'hidden',
   },
-  fill: { height: 3, backgroundColor: C.accent },
+  fill: {
+    height: 4,
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 4,
+  },
+  fillGrad: { flex: 1 },
 });
