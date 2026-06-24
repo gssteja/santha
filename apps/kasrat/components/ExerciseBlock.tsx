@@ -99,6 +99,15 @@ export function ExerciseBlock({
   let mainCount = 0;
   const setLabels = exercise.sets.map(set => (set.drop ? '↓' : String(++mainCount)));
 
+  // Align each set with its matching previous set — k-th working set → k-th previous
+  // working set, k-th drop → k-th previous drop — mirroring how the prefill seeds. This
+  // lets a drop row show its own previous drop instead of a blank "—".
+  const prevMains = previousSets.filter(p => !p.drop);
+  const prevDrops = previousSets.filter(p => p.drop);
+  let pmIdx = 0;
+  let pdIdx = 0;
+  const prevForSet = exercise.sets.map(set => (set.drop ? prevDrops[pdIdx++] : prevMains[pmIdx++]));
+
   function handleRemove() {
     Alert.alert('Remove exercise?', exercise.name, [
       { text: 'Cancel', style: 'cancel' },
@@ -254,13 +263,9 @@ export function ExerciseBlock({
 
       {/* Sets */}
       {exercise.sets.map((set, si) => {
-        const prev = previousSets[si];
-        const prevLabel = set.drop
-          ? '—'
-          : prev
+        const prev = prevForSet[si];
+        const prevLabel = prev
           ? `${prev.weight || '—'}×${prev.reps || '—'}`
-          : si === 0 && previousSets.length > 0
-          ? `${previousSets[0].weight || '—'}×${previousSets[0].reps || '—'}`
           : '—';
 
         const canPlate = !set.drop && (parseFloat(set.weight) || 0) > 0;
