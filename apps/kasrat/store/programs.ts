@@ -94,7 +94,7 @@ export const PROGRAMS: Program[] = [
         name: 'Day 5 — Shoulders',
         exercises: [
           { name: 'Barbell Overhead Press (3×6 → +1 set/wk → 5×6, then +load)', rpe: '8', sets: 3, reps: '6', muscle: 'Shoulders', note: 'Progression: 3×6, add a set each week to 5×6 by week 3, then week 4 drop back to 3×6 with more weight. Push through the outside of your hands (cues abduction); elbows ~45° tucked at the bottom, flare as the bar clears your face. Dumbbells fine if comfier.' },
-          { name: 'Dumbbell Lateral Raise', rpe: '9-10', sets: 3, reps: '15', muscle: 'Shoulders', perSide: true, note: 'Contracted-position loading = low muscle damage, so push close to failure.' },
+          { name: 'Machine Lateral Raise', rpe: '9-10', sets: 3, reps: '15', muscle: 'Shoulders', note: 'Both arms at once on the machine — the fixed path lets you chase the side delts hard. Lead with the elbows (not the hands), pause at the top, control the way down. Contracted-position loading = low damage, so push close to failure.' },
           { name: 'Seated Cable Row', rpe: '8-9', sets: 3, reps: '12', muscle: 'Back', note: 'Lat-dominant: pull elbows down and tucked to your sides (drop the weight a bit). Lean forward slightly on the eccentric for more lat stretch.' },
           { name: 'Lying Leg Curl', rpe: '8-9', sets: 3, reps: '12', muscle: 'Hamstrings', note: 'Only leg work today. Keep the pads pinned against your ankles — squeeze the hamstrings, don’t heave with momentum. Posterior chain may still be tired from Day 4 deadlifts.' },
           { name: 'Dumbbell Concentration Curl', rpe: '9-10', sets: 3, reps: '12', muscle: 'Biceps', perSide: true, note: 'Elbow pinned to the leg. Supinate by driving through the pinky (neutral at bottom → palm up at top); loose grip so the forearm doesn’t take over.' },
@@ -169,7 +169,6 @@ const STARTER_WEIGHTS: Record<string, number> = {
   'machine lateral raise': 30,
   // Day 5
   'barbell overhead press (3×6 → +1 set/wk → 5×6, then +load)': 95,
-  'dumbbell lateral raise': 15,
   'seated cable row': 100,
   'lying leg curl': 70,
   'dumbbell concentration curl': 20,

@@ -35,6 +35,7 @@ export default function WorkoutScreen() {
     history,
     getPhaseSets,
     getBest1RM,
+    getBestVolume,
     addExercise,
     removeExercise,
     swapExercise,
@@ -183,6 +184,7 @@ export default function WorkoutScreen() {
                 exIdx={ei}
                 previousSets={getPhaseSets(ex.name, activeWorkout.week ?? 1, !!ex.waved)}
                 prevBest1RM={getBest1RM(ex.name)}
+                prevBestVolume={getBestVolume(ex.name)}
                 suggested={suggested}
                 onAddSet={() => addSet(ei)}
                 onAddDropAfter={si => addDropSet(ei, si)}

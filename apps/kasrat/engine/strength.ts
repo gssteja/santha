@@ -38,3 +38,20 @@ export function bestE1RM(
   }
   return best;
 }
+
+// Total working volume (Σ max(0,weight)×reps) across a set list. Unilateral lifts
+// count both sides (×2) — matches how session volume is tallied at finish time.
+// e1RM rewards a heavy top set; volume rewards total work done, so a session that
+// adds sets/reps without a new top single still shows as progress.
+export function setsVolume(
+  sets: Pick<WorkoutSet, 'weight' | 'reps'>[],
+  perSide = false
+): number {
+  let total = 0;
+  for (const s of sets) {
+    const w = Math.max(0, parseFloat(s.weight) || 0);
+    const r = parseInt(s.reps) || 0;
+    total += w * r;
+  }
+  return total * (perSide ? 2 : 1);
+}

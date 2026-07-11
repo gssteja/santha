@@ -8,6 +8,7 @@ import { Surface } from '@/components/ui/Surface';
 import { HeatStrip } from '@/components/ui/Heat';
 import { bestE1RM } from '@/engine/strength';
 import { recentPRs } from '@/engine/progression';
+import type { PRKind } from '@/engine/progression';
 import type { WorkoutRecord } from '@/types';
 
 function fmtTime(secs: number) {
@@ -53,13 +54,13 @@ export default function HistoryScreen() {
 
   // Whole-history derivations — recompute only when the log changes.
   const trends = useMemo(() => buildLiftTrends(history), [history]);
-  // name|date keys for sessions that set a fresh all-time e1RM high.
-  const prKeys = useMemo(() => {
-    const set = new Set<string>();
-    for (const pr of recentPRs(history, 50)) {
-      set.add(`${pr.name.toLowerCase()}|${pr.date}`);
+  // name|date → PR kind for sessions that set a fresh all-time high (e1RM and/or volume).
+  const prKinds = useMemo(() => {
+    const m = new Map<string, PRKind>();
+    for (const pr of recentPRs(history, 200)) {
+      m.set(`${pr.name.toLowerCase()}|${pr.date}`, pr.kind);
     }
-    return set;
+    return m;
   }, [history]);
 
   const totalVolume = useMemo(
@@ -94,7 +95,7 @@ export default function HistoryScreen() {
             workout={w}
             index={idx}
             trends={trends}
-            prKeys={prKeys}
+            prKinds={prKinds}
           />
         ))
       )}
@@ -106,12 +107,12 @@ function WorkoutCard({
   workout: w,
   index,
   trends,
-  prKeys,
+  prKinds,
 }: {
   workout: WorkoutRecord;
   index: number;
   trends: Record<string, number[]>;
-  prKeys: Set<string>;
+  prKinds: Map<string, PRKind>;
 }) {
   // Subtle staggered fade + lift-in as cards mount.
   const anim = useRef(new Animated.Value(0)).current;
@@ -174,7 +175,10 @@ function WorkoutCard({
               const latest = best ? Math.round(best.orm) : 0;
               const frac = allTimeBest > 0 ? latest / allTimeBest : 0;
               const stripColor = heatForFraction(frac);
-              const isPR = prKeys.has(`${ex.name.toLowerCase()}|${w.date}`);
+              const kind = prKinds.get(`${ex.name.toLowerCase()}|${w.date}`);
+              const isPR = !!kind;
+              const strengthPR = kind === 'strength' || kind === 'both';
+              const marker = kind === 'volume' ? '📈 ' : isPR ? '🔥 ' : '';
               const display = cleanExName(ex.name);
 
               return (
@@ -185,12 +189,12 @@ function WorkoutCard({
                   accessibilityLabel={
                     `${display}, ${ex.sets.map(s => `${s.weight} by ${s.reps}`).join(', ')}` +
                     (best ? `, e1RM ${latest} pounds` : '') +
-                    (isPR ? ', personal record' : '')
+                    (kind ? `, ${kind === 'volume' ? 'volume' : kind === 'both' ? 'e1RM and volume' : 'e1RM'} record` : '')
                   }
                 >
                   <View style={styles.exHead}>
                     <Text style={[styles.exName, isPR && styles.exNamePR]} numberOfLines={1}>
-                      {isPR ? '🔥 ' : ''}{display}
+                      {marker}{display}
                     </Text>
                     {strip.length > 1 && (
                       <HeatStrip values={strip} color={stripColor} width={4} gap={2} maxHeight={16} />
@@ -201,7 +205,7 @@ function WorkoutCard({
                       {ex.sets.map(s => `${s.weight}×${s.reps}`).join('  ')}
                     </Text>
                     {best && (
-                      <Text style={[styles.exOrm, isPR && styles.exOrmPR]}>
+                      <Text style={[styles.exOrm, strengthPR && styles.exOrmPR]}>
                         {latest}
                         <Text style={styles.exOrmUnit}> e1RM</Text>
                       </Text>

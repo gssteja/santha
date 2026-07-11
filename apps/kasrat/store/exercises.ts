@@ -17,6 +17,7 @@ export const EXERCISES: Exercise[] = [
   // Shoulders
   { id: 'ohp', name: 'Overhead Press', muscle: 'Shoulders', equipment: 'Barbell' },
   { id: 'db-lateral', name: 'Lateral Raise', muscle: 'Shoulders', equipment: 'Dumbbell' },
+  { id: 'machine-lateral', name: 'Machine Lateral Raise', muscle: 'Shoulders', equipment: 'Machine' },
   { id: 'face-pull', name: 'Face Pull', muscle: 'Shoulders', equipment: 'Cable' },
   { id: 'db-shoulder-press', name: 'DB Shoulder Press', muscle: 'Shoulders', equipment: 'Dumbbell' },
   // Biceps

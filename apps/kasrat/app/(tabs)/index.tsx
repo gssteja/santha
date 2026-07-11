@@ -15,7 +15,8 @@ import { useStore } from '@/store/StoreContext';
 import { useMetrics } from '@/store/MetricsContext';
 import { makeProgramExerciseBlock } from '@/store/workoutStore';
 import { PROGRAMS, isHeavyWeek, isWaved, resolveReps, repsToInput, repSequence } from '@/store/programs';
-import { suggestLoad, detectDeload, recentPRs } from '@/engine/progression';
+import { suggestLoad, detectStall, deloadMessage, recentPRs } from '@/engine/progression';
+import type { PRKind } from '@/engine/progression';
 import { C, F, FONT, HEAT, RADIUS, SHADOW, heatForFraction } from '@/constants/theme';
 import { ForgedNumber } from '@/components/ui/ForgedNumber';
 import { Surface } from '@/components/ui/Surface';
@@ -24,6 +25,11 @@ import { haptics } from '@/components/ui/haptics';
 
 function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+}
+
+// Strip program parentheticals like "(drop set, to failure)" for a cleaner display name.
+function cleanName(name: string) {
+  return name.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim() || name;
 }
 
 function fmtTime(secs: number) {
@@ -56,6 +62,13 @@ function fmtAgoDate(iso: string) {
   if (days < 7) return `${days}d`;
   return `${Math.floor(days / 7)}w`;
 }
+
+// PR feed badge per kind: a heavier top single (e1RM), more total work (volume), or both.
+const PR_KIND_META: Record<PRKind, { tag: string; color: string }> = {
+  strength: { tag: 'E1RM', color: HEAT.white },
+  volume: { tag: 'VOLUME', color: HEAT.hot },
+  both: { tag: 'E1RM + VOL', color: HEAT.white },
+};
 
 // readiness score → forged badge spec.
 const READINESS_META: Record<number, { label: string; color: string }> = {
@@ -164,17 +177,21 @@ export default function TodayScreen() {
     });
   }, [nextDay, history, week, readyScore]);
 
-  // One gentle deload nudge: the first next-day lift that has stalled 3 sessions.
+  // One gentle deload nudge: of the next-day lifts, the one plateaued the LONGEST
+  // (no new e1RM or volume high). Deterministic — longest stall wins, ties break by
+  // program order — and the copy is derived from the real stall, not picked at random.
   const deload = useMemo(() => {
     if (!nextDay) return null;
+    let msg: string | null = null;
+    let worst = 0;
     for (const ex of nextDay.exercises) {
-      const d = detectDeload(history, ex.name);
-      if (d) {
-        const short = ex.name.split(/[(—]/)[0].trim();
-        return `${short}: 3 sessions flat. Back off a week?`;
+      const flag = detectStall(history, ex.name);
+      if (flag && flag.sessions > worst) {
+        worst = flag.sessions;
+        msg = deloadMessage(ex.name, flag);
       }
     }
-    return null;
+    return msg;
   }, [nextDay, history]);
 
   const prs = useMemo(() => recentPRs(history, 5), [history]);
@@ -340,20 +357,33 @@ export default function TodayScreen() {
         <>
           <Text style={styles.sectionLabel}>RECENT HEAT</Text>
           <Surface style={styles.prCard}>
-            {prs.map((pr, i) => (
-              <View key={`${pr.name}-${pr.date}-${i}`} style={[styles.prRow, i > 0 && styles.prRowBorder]}>
-                <View style={styles.prInfo}>
-                  <Text style={styles.prName} numberOfLines={1}>{pr.name}</Text>
-                  <Text style={styles.prMeta}>
-                    {pr.weight}×{pr.reps} · {fmtAgoDate(pr.date)}
-                  </Text>
+            {prs.map((pr, i) => {
+              const meta = PR_KIND_META[pr.kind];
+              const showVol = pr.kind === 'volume';
+              return (
+                <View key={`${pr.name}-${pr.date}-${i}`} style={[styles.prRow, i > 0 && styles.prRowBorder]}>
+                  <View style={styles.prInfo}>
+                    <Text style={styles.prName} numberOfLines={1}>{cleanName(pr.name)}</Text>
+                    <View style={styles.prMetaRow}>
+                      <Text style={[styles.prTag, { color: meta.color, borderColor: meta.color + '55' }]}>
+                        {meta.tag}
+                      </Text>
+                      <Text style={styles.prMeta}>
+                        {pr.weight ? `${pr.weight}×${pr.reps} · ` : ''}{fmtAgoDate(pr.date)}
+                      </Text>
+                    </View>
+                  </View>
+                  <View style={styles.prOrm}>
+                    <ForgedNumber
+                      value={showVol ? pr.volume.toLocaleString() : Math.round(pr.orm)}
+                      size={26}
+                      color={meta.color}
+                    />
+                    <Text style={styles.prUnit}>{showVol ? 'lb vol' : 'e1RM'}</Text>
+                  </View>
                 </View>
-                <View style={styles.prOrm}>
-                  <ForgedNumber value={Math.round(pr.orm)} size={26} color={HEAT.white} />
-                  <Text style={styles.prUnit}>e1RM</Text>
-                </View>
-              </View>
-            ))}
+              );
+            })}
           </Surface>
         </>
       )}
@@ -611,7 +641,18 @@ const styles = StyleSheet.create({
   prRowBorder: { borderTopWidth: 1, borderTopColor: C.border },
   prInfo: { flex: 1, marginRight: 12 },
   prName: { color: C.text, fontSize: F.sm, fontFamily: FONT.bold },
-  prMeta: { color: C.text3, fontSize: F.xs, marginTop: 2, fontFamily: FONT.medium, fontVariant: ['tabular-nums'] },
+  prMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 3 },
+  prTag: {
+    fontSize: F.xs - 2,
+    fontFamily: FONT.bold,
+    letterSpacing: 0.5,
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    overflow: 'hidden',
+  },
+  prMeta: { color: C.text3, fontSize: F.xs, fontFamily: FONT.medium, fontVariant: ['tabular-nums'] },
   prOrm: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
   prUnit: { color: C.text3, fontSize: F.xs, fontFamily: FONT.medium },
 

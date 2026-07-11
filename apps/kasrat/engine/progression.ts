@@ -1,7 +1,7 @@
 // Adaptive layer — reads logged history and SUGGESTS; never mutates the program.
 import type { WorkoutRecord, WorkoutSet } from '@/types';
 import { isHeavyWeek } from '@/store/programs';
-import { bestE1RM, roundTo } from './strength';
+import { bestE1RM, roundTo, setsVolume } from './strength';
 
 const eq = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 
@@ -55,46 +55,104 @@ export function suggestLoad(opts: {
   return { weight, reason };
 }
 
-export type DeloadFlag = { sessions: number; reason: string } | null;
+export type StallFlag = { sessions: number; peakOrm: number; peakVol: number } | null;
 
-// Flags a stall: no new e1RM high across the last 3 sessions containing the lift.
-export function detectDeload(history: WorkoutRecord[], name: string): DeloadFlag {
-  const orms: number[] = [];
-  for (const rec of history) {
+// One (orm, vol) sample per session containing the lift, oldest→newest.
+function liftSeries(history: WorkoutRecord[], name: string): { orm: number; vol: number }[] {
+  const chrono = [...history].sort(
+    (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+  );
+  const out: { orm: number; vol: number }[] = [];
+  for (const rec of chrono) {
     const ex = rec.exerciseData?.find(e => eq(e.name, name));
     if (!ex) continue;
-    const best = bestE1RM(ex.sets);
-    if (best) orms.push(best.orm);
-    if (orms.length >= 3) break;
+    const orm = bestE1RM(ex.sets)?.orm ?? 0;
+    const vol = setsVolume(ex.sets, ex.perSide);
+    if (orm <= 0 && vol <= 0) continue; // nothing loggable (e.g. bodyweight)
+    out.push({ orm, vol });
   }
-  if (orms.length < 3) return null;
-  const [newest, ...rest] = orms;
-  if (newest <= Math.max(...rest) + 0.01) {
-    return { sessions: 3, reason: 'no new high in 3 sessions' };
-  }
-  return null;
+  return out;
 }
 
-export type PREntry = { name: string; orm: number; weight: string; reps: string; date: string };
+// Flags a genuine plateau: the last `threshold` sessions all failed to set a new
+// all-time high in EITHER e1RM or volume. Adding reps/sets/load in any form resets
+// the streak — so we only nudge a deload when there's truly no progress on any front
+// (the old check looked at e1RM alone and nagged whenever the top single held).
+export function detectStall(history: WorkoutRecord[], name: string, threshold = 3): StallFlag {
+  const series = liftSeries(history, name);
+  if (series.length < threshold + 1) return null; // need a baseline + `threshold` flat sessions
+  let peakOrm = 0;
+  let peakVol = 0;
+  let lastProgress = 0; // index of the most recent session that set a new high (baseline counts)
+  series.forEach((s, i) => {
+    const advanced = i === 0 || s.orm > peakOrm + 0.01 || s.vol > peakVol + 0.01;
+    if (s.orm > peakOrm) peakOrm = s.orm;
+    if (s.vol > peakVol) peakVol = s.vol;
+    if (advanced) lastProgress = i;
+  });
+  const streak = series.length - 1 - lastProgress;
+  if (streak < threshold) return null;
+  return { sessions: streak, peakOrm, peakVol };
+}
 
-// Sessions where a lift beat its prior all-time e1RM, most recent first.
-// The first time a lift appears is a baseline, not a PR.
+// Deterministic, data-derived deload line — reflects the actual stall (lift, streak,
+// peak e1RM) with a concrete next step. No canned/random copy.
+export function deloadMessage(name: string, flag: StallFlag): string | null {
+  if (!flag) return null;
+  const short = name.split(/[(—]/)[0].trim();
+  const peak = Math.round(flag.peakOrm);
+  return peak > 0
+    ? `${short}: stuck ${flag.sessions} sessions at ~${peak} lb e1RM — no extra volume either. Deload ~10% or add a set to break it.`
+    : `${short}: no new high in ${flag.sessions} sessions. Deload ~10% or add a set to break it.`;
+}
+
+export type PRKind = 'strength' | 'volume' | 'both';
+export type PREntry = {
+  name: string;
+  orm: number;
+  weight: string;
+  reps: string;
+  volume: number;
+  date: string;
+  kind: PRKind;
+};
+
+// Sessions where a lift beat its prior all-time best on e1RM OR total volume,
+// most recent first. Volume counts because more work done is real progress even
+// when the top single is unchanged. The first time a lift appears is a baseline.
 export function recentPRs(history: WorkoutRecord[], limit = 6): PREntry[] {
   const chrono = [...history].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  const best: Record<string, number> = {};
+  const bestOrm: Record<string, number> = {};
+  const bestVol: Record<string, number> = {};
+  const seen = new Set<string>();
   const prs: PREntry[] = [];
   for (const rec of chrono) {
     for (const ex of rec.exerciseData ?? []) {
       const b = bestE1RM(ex.sets);
-      if (!b) continue;
+      const orm = b?.orm ?? 0;
+      const vol = setsVolume(ex.sets, ex.perSide);
+      if (orm <= 0 && vol <= 0) continue;
       const key = ex.name.toLowerCase();
-      if (best[key] === undefined) {
-        best[key] = b.orm;
-        continue;
+      if (!seen.has(key)) {
+        seen.add(key);
+        bestOrm[key] = orm;
+        bestVol[key] = vol;
+        continue; // first appearance = baseline, not a PR
       }
-      if (b.orm > best[key] + 0.01) {
-        best[key] = b.orm;
-        prs.push({ name: ex.name, orm: b.orm, weight: b.weight, reps: b.reps, date: rec.date });
+      const strengthPR = orm > bestOrm[key] + 0.01;
+      const volumePR = vol > bestVol[key] + 0.01;
+      if (strengthPR) bestOrm[key] = orm;
+      if (volumePR) bestVol[key] = vol;
+      if (strengthPR || volumePR) {
+        prs.push({
+          name: ex.name,
+          orm,
+          weight: b?.weight ?? '',
+          reps: b?.reps ?? '',
+          volume: vol,
+          date: rec.date,
+          kind: strengthPR && volumePR ? 'both' : strengthPR ? 'strength' : 'volume',
+        });
       }
     }
   }

@@ -25,6 +25,8 @@ type Props = {
   previousSets: WorkoutSet[];
   /** Best estimated 1RM ever logged for this lift (the bar to beat), or null if new. */
   prevBest1RM: { orm: number; weight: string; reps: string } | null;
+  /** Best single-session volume (lb) ever logged for this lift; 0/undefined if new. */
+  prevBestVolume?: number;
   /** Adaptive load pick for the next working set (from the progression engine), or null. */
   suggested?: { weight: number; reason: string } | null;
   onAddSet: () => void;
@@ -41,6 +43,7 @@ export function ExerciseBlock({
   exIdx,
   previousSets,
   prevBest1RM,
+  prevBestVolume = 0,
   suggested,
   onAddSet,
   onAddDropAfter,
@@ -71,17 +74,24 @@ export function ExerciseBlock({
     return Math.max(best, epley1RM(w, r));
   }, 0);
   const beat1RM = curBest1RM > 0 && curBest1RM > (prevBest1RM?.orm ?? 0);
+  // Volume PR: this session's live volume beats the best single session ever logged.
+  // Needs a prior best to beat (a brand-new lift can't PR its own baseline).
+  const beatVol = prevBestVolume > 0 && exerciseVolume > prevBestVolume + 0.5;
+  // "Best yet" fires on EITHER a heavier top single OR more total work — the user's
+  // expectation: adding volume is progress even when the top-set e1RM is unchanged.
+  const beatAny = beat1RM || beatVol;
 
   // How hot the e1RM runs: live best as a fraction of the bar to beat (white-hot once passed).
   const ormFraction = prevBest1RM?.orm ? curBest1RM / prevBest1RM.orm : beat1RM ? 1 : 0;
   const ormHeat = beat1RM ? HEAT.white : heatForFraction(ormFraction);
   const heroOrm = beat1RM ? curBest1RM : prevBest1RM?.orm ?? 0;
 
-  // One-shot PR bloom: fires once each time the live 1RM crosses the all-time bar.
+  // One-shot PR bloom: fires once each time the live session crosses an all-time bar
+  // (e1RM or volume).
   const bloom = useRef(new Animated.Value(0)).current;
   const wasBeat = useRef(false);
   useEffect(() => {
-    if (beat1RM && !wasBeat.current) {
+    if (beatAny && !wasBeat.current) {
       wasBeat.current = true;
       haptics.pr();
       bloom.setValue(0);
@@ -89,10 +99,10 @@ export function ExerciseBlock({
         Animated.timing(bloom, { toValue: 1, duration: 260, useNativeDriver: true }),
         Animated.timing(bloom, { toValue: 0, duration: 620, useNativeDriver: true }),
       ]).start();
-    } else if (!beat1RM) {
+    } else if (!beatAny) {
       wasBeat.current = false;
     }
-  }, [beat1RM]);
+  }, [beatAny]);
   const bloomScale = bloom.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
 
   // Number only the main (non-drop) sets; drop sets show ↓.
@@ -222,8 +232,14 @@ export function ExerciseBlock({
       ) : null}
 
       {exerciseVolume > 0 && (
-        <Text style={s.volText}>
+        <Text style={[s.volText, beatVol && s.volTextPR]}>
+          {beatVol ? '🔥 ' : ''}
           {exerciseVolume.toLocaleString()} lb volume{exercise.perSide ? ' (both sides)' : ''}
+          {beatVol
+            ? ` · best yet${prevBestVolume > 0 ? ` (was ${Math.round(prevBestVolume).toLocaleString()})` : ''}`
+            : prevBestVolume > 0
+            ? ` · best ${Math.round(prevBestVolume).toLocaleString()}`
+            : ''}
         </Text>
       )}
 
@@ -448,6 +464,7 @@ const s = StyleSheet.create({
   ormLabel: { color: C.text2, fontSize: F.xs, fontFamily: FONT.bold, letterSpacing: 1, textTransform: 'uppercase' },
   ormSub: { color: C.text3, fontSize: F.xs, fontFamily: FONT.regular, marginTop: 1, fontVariant: ['tabular-nums'] },
   volText: { color: C.text3, fontSize: F.xs, fontFamily: FONT.regular, paddingHorizontal: 14, paddingBottom: 4 },
+  volTextPR: { color: HEAT.white, fontFamily: FONT.bold },
   note: {
     color: C.text3,
     fontSize: F.xs,

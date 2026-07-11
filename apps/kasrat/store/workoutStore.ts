@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { SERVER_URL, STORE_KEY } from '@/constants/config';
 import { PROGRAMS, epley1RM, isHeavyWeek, starterWeight, weightForReps } from '@/store/programs';
+import { setsVolume } from '@/engine/strength';
 import type { ActiveWorkout, WorkoutExercise, WorkoutRecord, WorkoutSet } from '@/types';
 
 const STORAGE_KEY = 'kasrat_v1';
@@ -412,6 +413,24 @@ export function useWorkoutStore() {
     [state.history]
   );
 
+  // Best single-session working volume ever logged for a lift (the volume bar to beat).
+  // Mirrors getBest1RM: history excludes the in-progress workout. 0 when never logged.
+  const getBestVolume = useCallback(
+    (exerciseName: string): number => {
+      let best = 0;
+      for (const record of state.history) {
+        const ex = record.exerciseData?.find(
+          e => e.name.toLowerCase() === exerciseName.toLowerCase()
+        );
+        if (!ex) continue;
+        const v = setsVolume(ex.sets, ex.perSide);
+        if (v > best) best = v;
+      }
+      return best;
+    },
+    [state.history]
+  );
+
   const startWorkout = useCallback(
     (name: string, week?: number) => dispatch({ type: 'START_WORKOUT', name, week }),
     []
@@ -483,6 +502,7 @@ export function useWorkoutStore() {
     getPhaseSets,
     getSeedSets,
     getBest1RM,
+    getBestVolume,
     startWorkout,
     addExercise,
     removeExercise,
