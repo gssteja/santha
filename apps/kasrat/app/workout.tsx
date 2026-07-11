@@ -12,11 +12,13 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ExerciseBlock } from '@/components/ExerciseBlock';
 import { ExercisePicker } from '@/components/ExercisePicker';
 import { RestTimer, restForExercise } from '@/components/RestTimer';
+import { SessionSummary, type Session, type SessionPR } from '@/components/SessionSummary';
 import { ForgedNumber } from '@/components/ui/ForgedNumber';
 import { useStore } from '@/store/StoreContext';
 import { useMetrics } from '@/store/MetricsContext';
 import { makeExerciseBlock } from '@/store/workoutStore';
 import { suggestLoad } from '@/engine/progression';
+import { bestE1RM, setsVolume } from '@/engine/strength';
 import type { Exercise } from '@/types';
 import { C, F, FONT, HEAT } from '@/constants/theme';
 
@@ -50,6 +52,7 @@ export default function WorkoutScreen() {
   const { todayReadiness } = useMetrics();
 
   const [elapsed, setElapsed] = useState(0);
+  const [summary, setSummary] = useState<Session | null>(null);
   const [showPicker, setShowPicker] = useState(false);
   const [restVisible, setRestVisible] = useState(false);
   const [restSeconds, setRestSeconds] = useState(90);
@@ -84,6 +87,43 @@ export default function WorkoutScreen() {
     }
   }
 
+  // Snapshot the session for the end-screen BEFORE finishing (finishWorkout clears the
+  // active workout). PRs compare this session against history bests, which exclude the
+  // in-progress workout; a lift's first-ever appearance is a baseline, not a PR.
+  function buildSummary(): Session {
+    const w = activeWorkout!;
+    let volume = 0;
+    let sets = 0;
+    const prs: SessionPR[] = [];
+    for (const ex of w.exercises) {
+      const done = ex.sets.filter(s => s.done);
+      if (!done.length) continue;
+      sets += done.length;
+      const vol = setsVolume(done, ex.perSide);
+      volume += vol;
+      const curOrm = bestE1RM(done)?.orm ?? 0;
+      const prevOrm = getBest1RM(ex.name)?.orm ?? 0;
+      const prevVol = getBestVolume(ex.name);
+      const strengthPR = prevOrm > 0 && curOrm > prevOrm + 0.01;
+      const volumePR = prevVol > 0 && vol > prevVol + 0.5;
+      if (strengthPR || volumePR) {
+        prs.push({
+          name: ex.name,
+          kind: strengthPR && volumePR ? 'both' : strengthPR ? 'strength' : 'volume',
+          orm: curOrm,
+          volume: Math.round(vol),
+        });
+      }
+    }
+    return {
+      name: w.name,
+      durationSec: Math.floor((Date.now() - w.startTime) / 1000),
+      sets,
+      volume: Math.round(volume),
+      prs,
+    };
+  }
+
   function handleFinish() {
     const doneSets = activeWorkout!.exercises.flatMap(e => e.sets.filter(s => s.done)).length;
     if (doneSets === 0) {
@@ -93,6 +133,10 @@ export default function WorkoutScreen() {
       ]);
       return;
     }
+    setSummary(buildSummary());
+  }
+
+  function handleConfirmFinish() {
     finishWorkout();
     router.back();
   }
@@ -208,6 +252,8 @@ export default function WorkoutScreen() {
         onSelect={handleSelectExercise}
         onClose={() => setShowPicker(false)}
       />
+
+      <SessionSummary session={summary} onDone={handleConfirmFinish} />
     </View>
   );
 }
