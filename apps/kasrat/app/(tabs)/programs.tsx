@@ -9,8 +9,17 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store/StoreContext';
-import { PROGRAMS } from '@/store/programs';
-import { makeExerciseBlock } from '@/store/workoutStore';
+import {
+  ACTIVE_PROGRAM_ID,
+  PROGRAMS,
+  isHeavyWeek,
+  isWaved,
+  repSequence,
+  repsToInput,
+  resolveReps,
+} from '@/store/programs';
+import type { Program, ProgramDay } from '@/store/programs';
+import { makeProgramExerciseBlock } from '@/store/workoutStore';
 import { C, F } from '@/constants/theme';
 
 function slugify(name: string) {
@@ -20,14 +29,53 @@ function slugify(name: string) {
 export default function ProgramsScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const { startWorkout, addExercise } = useStore();
-  const [openProgram, setOpenProgram] = useState<string | null>(PROGRAMS[0]?.id ?? null);
+  const { startWorkout, addExercise, getPhaseSets, getSeedSets, history } = useStore();
+  const [openProgram, setOpenProgram] = useState<string | null>(ACTIVE_PROGRAM_ID);
   const [openDay, setOpenDay] = useState<string | null>(null);
 
-  function handleStartDay(programId: string, dayName: string, exercises: { name: string; sets: number; reps: string; muscle?: string }[]) {
-    startWorkout(dayName);
-    for (const ex of exercises) {
-      addExercise(makeExerciseBlock(slugify(ex.name), ex.name, ex.muscle ?? ''));
+  // Week for a hand-started day: carry on from that program's own last logged session.
+  // The stored rotation pointer can't be trusted here — it tracks the active program, so
+  // starting a retired program's day off it would stamp the wrong week (and, for waved
+  // lifts, pull the wrong heavy/light previous weights).
+  function weekFor(prog: Program) {
+    const last = history.find(rec =>
+      rec.programId ? rec.programId === prog.id : prog.days.some(d => d.name === rec.name)
+    );
+    return last?.week ?? 1;
+  }
+
+  // Starting a day by hand builds the same blocks as the home screen's next-up button:
+  // prescribed sets/reps, per-side and drop-set flags, cues, and last session's weights.
+  function handleStartDay(prog: Program, day: ProgramDay) {
+    const week = weekFor(prog);
+    startWorkout(day.name, week, prog.id);
+    for (const ex of day.exercises) {
+      const waved = isWaved(ex.reps);
+      const perSide = !!ex.perSide || /\/\s*side/i.test(ex.reps);
+      const target = `${ex.sets}×${resolveReps(ex.reps, week)}`;
+      const drops = ex.dropSet ? repSequence(ex.reps, week).slice(1) : [];
+      const repsNum = parseInt(repsToInput(ex.reps, week) || '0') || 0;
+      const phaseSets = getPhaseSets(ex.name, week, waved);
+      const seedSets = phaseSets.length ? phaseSets : getSeedSets(ex.name, ex.sets, waved, repsNum);
+      addExercise(
+        makeProgramExerciseBlock(
+          slugify(ex.name),
+          ex.name,
+          ex.muscle ?? '',
+          ex.sets,
+          repsToInput(ex.reps, week),
+          seedSets,
+          {
+            perSide,
+            target,
+            waved,
+            heavy: waved && isHeavyWeek(week),
+            note: ex.note,
+            drops,
+            rpe: ex.rpe,
+          },
+        ),
+      );
     }
     router.push('/workout');
   }
@@ -40,7 +88,7 @@ export default function ProgramsScreen() {
     >
       <View style={styles.pageHeader}>
         <Text style={styles.title}>Programs</Text>
-        <Text style={styles.subtitle}>Nippard Programs</Text>
+        <Text style={styles.subtitle}>Your Library</Text>
       </View>
 
       {PROGRAMS.map(program => {
@@ -53,7 +101,14 @@ export default function ProgramsScreen() {
               activeOpacity={0.7}
             >
               <View style={styles.programHeaderLeft}>
-                <Text style={styles.programName}>{program.name}</Text>
+                <View style={styles.programNameRow}>
+                  <Text style={styles.programName}>{program.name}</Text>
+                  {program.id === ACTIVE_PROGRAM_ID && (
+                    <View style={styles.activeChip}>
+                      <Text style={styles.activeChipText}>ACTIVE</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={styles.programMeta}>
                   {program.split} · {program.daysPerCycle}-day cycle · {program.author}
                 </Text>
@@ -103,7 +158,7 @@ export default function ProgramsScreen() {
                           ))}
                           <TouchableOpacity
                             style={styles.startBtn}
-                            onPress={() => handleStartDay(program.id, day.name, day.exercises)}
+                            onPress={() => handleStartDay(program, day)}
                           >
                             <Text style={styles.startBtnText}>Start</Text>
                           </TouchableOpacity>
@@ -143,7 +198,15 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   programHeaderLeft: { flex: 1 },
+  programNameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   programName: { color: C.text, fontSize: F.base, fontWeight: '700' },
+  activeChip: {
+    backgroundColor: C.accent,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+  },
+  activeChipText: { color: '#fff', fontSize: F.xs - 2, fontWeight: '800', letterSpacing: 0.6 },
   programMeta: { color: C.text2, fontSize: F.xs, marginTop: 3 },
   programDesc: {
     color: C.text3,

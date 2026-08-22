@@ -1,14 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useReducer } from 'react';
 import { SERVER_URL, STORE_KEY } from '@/constants/config';
-import { PROGRAMS, epley1RM, isHeavyWeek, starterWeight, weightForReps } from '@/store/programs';
+import { ACTIVE_PROGRAM_ID, getProgram, PROGRAMS, epley1RM, isHeavyWeek, starterWeight, weightForReps } from '@/store/programs';
 import { setsVolume } from '@/engine/strength';
 import type { ActiveWorkout, WorkoutExercise, WorkoutRecord, WorkoutSet } from '@/types';
 
 const STORAGE_KEY = 'kasrat_v1';
 
-// Single active program; rotation tracks where we are in its day cycle.
-const ACTIVE_PROGRAM = PROGRAMS[0];
+// The program the day-rotation follows. Retired programs stay in PROGRAMS (their history
+// still resolves, and they can be started by hand) but no longer advance the rotation.
+const ACTIVE_PROGRAM = getProgram(ACTIVE_PROGRAM_ID) ?? PROGRAMS[0];
 
 export type ProgramProgress = { dayIndex: number; week: number };
 
@@ -26,7 +27,7 @@ type Action =
   | { type: 'MERGE_SERVER'; records: WorkoutRecord[] }
   | { type: 'SET_SYNCING'; value: boolean }
   | { type: 'SYNCED'; at: number }
-  | { type: 'START_WORKOUT'; name: string; week?: number }
+  | { type: 'START_WORKOUT'; name: string; week?: number; programId?: string }
   | { type: 'ADD_EXERCISE'; exercise: WorkoutExercise }
   | { type: 'REMOVE_EXERCISE'; exIdx: number }
   | { type: 'SWAP_EXERCISE'; exIdx: number; newName: string }
@@ -79,6 +80,7 @@ function reducer(state: State, action: Action): State {
           startTime: Date.now(),
           exercises: [],
           week: action.week,
+          programId: action.programId,
         },
       };
 
@@ -204,6 +206,7 @@ function reducer(state: State, action: Action): State {
         sets: completedSets.length,
         volume: Math.round(volume),
         week: w.week ?? state.program.week,
+        programId: w.programId,
         exercises: w.exercises.map(e => e.name),
         exerciseData: w.exercises.map(e => ({
           name: e.name,
@@ -432,7 +435,8 @@ export function useWorkoutStore() {
   );
 
   const startWorkout = useCallback(
-    (name: string, week?: number) => dispatch({ type: 'START_WORKOUT', name, week }),
+    (name: string, week?: number, programId?: string) =>
+      dispatch({ type: 'START_WORKOUT', name, week, programId }),
     []
   );
 

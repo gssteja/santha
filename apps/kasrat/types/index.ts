@@ -32,6 +32,9 @@ export type ActiveWorkout = {
   exercises: WorkoutExercise[];
   /** Program week this session belongs to (carried from the history-derived "next up"). */
   week?: number;
+  /** Program this session came from. Absent on ad-hoc workouts and on anything logged
+   *  before programs were tagged (those are all Nippard high-frequency sessions). */
+  programId?: string;
 };
 
 export type WorkoutRecord = {
@@ -43,6 +46,9 @@ export type WorkoutRecord = {
   volume: number;
   /** Program week this was logged in — used to pull phase-matched (heavy/light) previous weights. */
   week?: number;
+  /** Program this session belongs to — keeps one program's rotation and week count from
+   *  being advanced by another program's sessions. Untagged records predate the field. */
+  programId?: string;
   exercises: string[];
   exerciseData?: {
     name: string;

@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store/StoreContext';
 import { useMetrics } from '@/store/MetricsContext';
 import { makeProgramExerciseBlock } from '@/store/workoutStore';
-import { PROGRAMS, isHeavyWeek, isWaved, resolveReps, repsToInput, repSequence } from '@/store/programs';
+import { ACTIVE_PROGRAM_ID, PROGRAMS, getProgram, isHeavyWeek, isWaved, resolveReps, repsToInput, repSequence } from '@/store/programs';
 import { suggestLoad, detectStall, deloadMessage, recentPRs } from '@/engine/progression';
 import type { PRKind } from '@/engine/progression';
 import { C, F, FONT, HEAT, RADIUS, SHADOW, heatForFraction } from '@/constants/theme';
@@ -103,10 +103,13 @@ export default function TodayScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [activeWorkout?.id]);
 
-  const activeProgram = PROGRAMS[0];
+  const activeProgram = getProgram(ACTIVE_PROGRAM_ID) ?? PROGRAMS[0];
+  // Sessions per week comes from the program's own cycle length, so switching programs
+  // (5-day → 3-day) re-bases the streak instead of leaving every week short.
+  const weeklyTarget = activeProgram?.daysPerCycle ?? 5;
 
   const { streakWeeks, thisWeekCount } = useMemo(() => {
-    const TARGET = 5;
+    const TARGET = weeklyTarget;
     const weekCounts = new Map<string, number>();
     for (const rec of history) {
       const d = new Date(rec.date);
@@ -139,7 +142,7 @@ export default function TodayScreen() {
       } else break;
     }
     return { streakWeeks, thisWeekCount };
-  }, [history]);
+  }, [history, weeklyTarget]);
 
   // Derive the next program day from logged history (not a local pointer that's lost on
   // reinstall): find the most recent workout matching a program day, suggest the next one.
@@ -147,6 +150,9 @@ export default function TodayScreen() {
     const days = activeProgram?.days ?? [];
     if (!days.length) return { dayIndex: 0, week: 1 };
     for (const rec of history) {
+      // A retired program's sessions must not move this program's rotation. Untagged
+      // records predate programId, so they only count if a day name still matches.
+      if (rec.programId && rec.programId !== activeProgram?.id) continue;
       const idx = days.findIndex(d => d.name === rec.name);
       if (idx >= 0) {
         const lastWeek = rec.week ?? 1;
@@ -198,7 +204,7 @@ export default function TodayScreen() {
 
   function handleStartNextDay() {
     if (!nextDay) return handleStart();
-    startWorkout(nextDay.name, week);
+    startWorkout(nextDay.name, week, activeProgram?.id);
     for (const ex of nextDay.exercises) {
       const waved = isWaved(ex.reps);
       const perSide = !!ex.perSide || /\/\s*side/i.test(ex.reps);
@@ -256,7 +262,7 @@ export default function TodayScreen() {
                 <Text style={styles.streakNum}>{streakWeeks}</Text> weeks. Still hot.
               </Text>
             )}
-            <Text style={styles.streakWeek}>{thisWeekCount}/5 this week</Text>
+            <Text style={styles.streakWeek}>{thisWeekCount}/{weeklyTarget} this week</Text>
           </View>
         )}
       </View>
