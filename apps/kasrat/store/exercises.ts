@@ -56,6 +56,7 @@ export const EXERCISES: Exercise[] = [
   { id: 'calf-raise', name: 'Calf Raise', muscle: 'Calves', equipment: 'Machine' },
   { id: 'standing-calf', name: 'Standing Calf Raise', muscle: 'Calves', equipment: 'Barbell' },
   { id: 'seated-calf', name: 'Seated Calf Raise', muscle: 'Calves', equipment: 'Machine' },
+  { id: 'leg-press-calf', name: 'Leg Press Calf Raise', muscle: 'Calves', equipment: 'Machine' },
   // Core
   { id: 'plank', name: 'Plank', muscle: 'Core', equipment: 'Bodyweight' },
   { id: 'crunch', name: 'Crunch', muscle: 'Core', equipment: 'Bodyweight' },
