@@ -171,6 +171,46 @@ app.delete('/api/workouts/:id', requireAppKey, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Finance sync (Gullak) ─────────────────────────────────────────────────────
+
+const FINANCE_FILE = path.join(DATA_DIR, 'finance.json');
+
+function readFinance() {
+  const empty = { txns: [], debts: [], settings: null };
+  if (!fs.existsSync(FINANCE_FILE)) return empty;
+  try { return { ...empty, ...JSON.parse(fs.readFileSync(FINANCE_FILE, 'utf8')) }; } catch { return empty; }
+}
+
+// Last-write-wins per id on updatedAt; deletes arrive as tombstones ({ deleted: true }).
+function mergeById(existing, incoming) {
+  const byId = new Map(existing.map(r => [r.id, r]));
+  for (const r of incoming) {
+    if (!r || typeof r.id !== 'string') continue;
+    const cur = byId.get(r.id);
+    if (!cur || (r.updatedAt || 0) >= (cur.updatedAt || 0)) byId.set(r.id, r);
+  }
+  return [...byId.values()];
+}
+
+// GET /api/finance — full state
+app.get('/api/finance', requireAppKey, (_req, res) => {
+  res.json(readFinance());
+});
+
+// POST /api/finance/sync — client pushes its full state, gets the merged state back
+app.post('/api/finance/sync', requireAppKey, (req, res) => {
+  const { txns, debts, settings } = req.body || {};
+  if (!Array.isArray(txns) || !Array.isArray(debts)) return res.status(400).json({ error: 'expected txns and debts arrays' });
+  const cur = readFinance();
+  const merged = {
+    txns: mergeById(cur.txns, txns),
+    debts: mergeById(cur.debts, debts),
+    settings: settings && (!cur.settings || (settings.updatedAt || 0) > (cur.settings.updatedAt || 0)) ? settings : cur.settings,
+  };
+  fs.writeFileSync(FINANCE_FILE, JSON.stringify(merged, null, 2));
+  res.json(merged);
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Delete app
