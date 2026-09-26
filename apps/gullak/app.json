@@ -1,0 +1,26 @@
+{
+  "expo": {
+    "name": "Gullak",
+    "slug": "gullak",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "gullak",
+    "userInterfaceStyle": "dark",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0c0e0d"
+    },
+    "android": {
+      "package": "com.santha.gullak",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0c0e0d"
+      }
+    },
+    "plugins": [
+      "expo-router"
+    ]
+  }
+}

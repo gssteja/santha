@@ -10,6 +10,9 @@ apps/kasrat/dist/
 # apps/santha/android/ is COMMITTED too (same RN bare-workflow reason as kasrat).
 apps/santha/.expo/
 apps/santha/dist/
+# apps/gullak/android/ is COMMITTED too (same RN bare-workflow reason as kasrat).
+apps/gullak/.expo/
+apps/gullak/dist/
 
 # env / secrets
 .env
@@ -24,6 +27,7 @@ apps/kasrat/.env
 # expo
 apps/kasrat/.expo-shared/
 apps/santha/.expo-shared/
+apps/gullak/.expo-shared/
 
 # IDE
 .idea/
