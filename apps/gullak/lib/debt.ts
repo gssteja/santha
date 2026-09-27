@@ -80,7 +80,8 @@ export interface Projection {
 export function project(debt: Debt, status: DebtStatus, fx: number, asOf: string = todayISO()): Projection {
   const planned = convert(debt.planned, 'USD', debt.currency, fx);
   let bal = status.balance;
-  let key = monthKey(asOf);
+  // A debt whose balance date is still ahead starts paying from that month, not this one.
+  let key = monthKey(debt.startDate > asOf ? debt.startDate : asOf);
   if (bal <= 0.5) return { payoffMonth: null, futureInterest: 0, months: 0 };
   bal -= Math.max(0, planned - status.paidThisMonth);
   let futureInterest = 0;
@@ -102,6 +103,6 @@ export function promoMonthly(debt: Debt, status: DebtStatus, asOf: string = toda
   if (!debt.promoEnd || status.balance <= 0.5) return null;
   const lastKey = addMonths(monthKey(debt.promoEnd), -1);
   let n = 0;
-  for (let k = monthKey(asOf); k <= lastKey; k = addMonths(k, 1)) n++;
+  for (let k = monthKey(debt.startDate > asOf ? debt.startDate : asOf); k <= lastKey; k = addMonths(k, 1)) n++;
   return n > 0 ? status.balance / n : status.balance;
 }

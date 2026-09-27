@@ -6,8 +6,8 @@ import type { Debt, FinanceData, Settings, Txn } from '@/types/finance';
 
 const STORAGE_KEY = 'gullak.v1';
 
-// Starting point (2026-09-26). Fixed ids + updatedAt 1 so every device converges on the
-// same records and any real edit wins the merge.
+// Starting point (2026-09-26). Fixed ids + small updatedAt values so every device converges on
+// the same records and any real edit wins the merge. Bump a seed's updatedAt to push a correction.
 const SEED: FinanceData = {
   txns: [],
   debts: [
@@ -17,7 +17,7 @@ const SEED: FinanceData = {
     },
     {
       id: 'td-card', name: 'TD card', currency: 'USD', startBalance: 2311,
-      startDate: '2026-10-11', rate: 0, promoEnd: '', planned: 2311, updatedAt: 1,
+      startDate: '2026-10-11', rate: 0, promoEnd: '2027-02-01', planned: 578, updatedAt: 2,
     },
   ],
   settings: { fx: 95.82, budget: 2080, updatedAt: 1 },
