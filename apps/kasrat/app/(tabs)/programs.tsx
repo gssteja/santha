@@ -21,6 +21,7 @@ import {
 import type { Program, ProgramDay } from '@/store/programs';
 import { makeProgramExerciseBlock } from '@/store/workoutStore';
 import { C, F } from '@/constants/theme';
+import { ExerciseDemo, hasDemo } from '@/components/ExerciseDemo';
 
 function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
@@ -32,6 +33,7 @@ export default function ProgramsScreen() {
   const { startWorkout, addExercise, getPhaseSets, getSeedSets, history } = useStore();
   const [openProgram, setOpenProgram] = useState<string | null>(ACTIVE_PROGRAM_ID);
   const [openDay, setOpenDay] = useState<string | null>(null);
+  const [openDemo, setOpenDemo] = useState<string | null>(null); // `${dayKey}::${i}` whose demo is showing
 
   // Week for a hand-started day: carry on from that program's own last logged session.
   // The stored rotation pointer can't be trusted here — it tracks the active program, so
@@ -140,13 +142,31 @@ export default function ProgramsScreen() {
 
                       {isDayOpen && (
                         <View>
-                          {day.exercises.map((ex, i) => (
-                            <View key={i} style={styles.exRow}>
+                          {day.exercises.map((ex, i) => {
+                            const demoKey = `${dayKey}::${i}`;
+                            const demo = hasDemo(ex.name);
+                            const demoOpen = openDemo === demoKey;
+                            return (
+                            <TouchableOpacity
+                              key={i}
+                              style={styles.exRow}
+                              activeOpacity={demo ? 0.7 : 1}
+                              disabled={!demo}
+                              onPress={() => setOpenDemo(demoOpen ? null : demoKey)}
+                            >
                               <View style={styles.exLeft}>
-                                <Text style={styles.exName}>{ex.name}</Text>
+                                <Text style={styles.exName}>
+                                  {ex.name}
+                                  {demo ? <Text style={[styles.demoMark, demoOpen && styles.demoMarkOn]}>  ▶</Text> : null}
+                                </Text>
                                 {ex.muscle && (
                                   <Text style={styles.exMuscle}>{ex.muscle}</Text>
                                 )}
+                                {demoOpen ? (
+                                  <View style={styles.demo}>
+                                    <ExerciseDemo name={ex.name} height={180} />
+                                  </View>
+                                ) : null}
                                 {ex.note && (
                                   <Text style={styles.exNote}>{ex.note}</Text>
                                 )}
@@ -154,8 +174,9 @@ export default function ProgramsScreen() {
                               <Text style={styles.exSetsReps}>
                                 {ex.sets}×{ex.reps}
                               </Text>
-                            </View>
-                          ))}
+                            </TouchableOpacity>
+                            );
+                          })}
                           <TouchableOpacity
                             style={styles.startBtn}
                             onPress={() => handleStartDay(program, day)}
@@ -252,6 +273,9 @@ const styles = StyleSheet.create({
   exLeft: { flex: 1 },
   exName: { color: C.text2, fontSize: F.xs, fontWeight: '600' },
   exMuscle: { color: C.accent, fontSize: F.xs - 1, marginTop: 1 },
+  demoMark: { color: C.text3, fontSize: F.xs - 2 },
+  demoMarkOn: { color: C.accent },
+  demo: { marginTop: 8 },
   exNote: { color: C.text3, fontSize: F.xs - 1, lineHeight: 16, marginTop: 4, fontStyle: 'italic', paddingRight: 8 },
   exSetsReps: { color: C.text3, fontSize: F.xs, fontVariant: ['tabular-nums'] },
   startBtn: {

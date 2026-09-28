@@ -16,6 +16,7 @@ import { HeatDots } from '@/components/ui/Heat';
 import { Surface } from '@/components/ui/Surface';
 import { haptics } from '@/components/ui/haptics';
 import { PlateCalculator } from '@/components/PlateCalculator';
+import { ExerciseDemo, hasDemo } from '@/components/ExerciseDemo';
 import { epley1RM } from '@/store/programs';
 import type { WorkoutExercise, WorkoutSet } from '@/types';
 
@@ -57,6 +58,8 @@ export function ExerciseBlock({
   const [swapName, setSwapName] = useState('');
   const [menuSet, setMenuSet] = useState<number | null>(null); // set index whose action menu is open
   const [plateWeight, setPlateWeight] = useState<number | null>(null); // weight whose plate calc is open
+  const [showDemo, setShowDemo] = useState(false);
+  const demo = hasDemo(exercise.name);
 
   const exerciseVolume =
     exercise.sets
@@ -185,6 +188,15 @@ export function ExerciseBlock({
         </View>
 
         <View style={s.headerActions}>
+          {demo ? (
+            <TouchableOpacity
+              style={[s.iconBtn, showDemo && s.iconBtnOn]}
+              onPress={() => setShowDemo(v => !v)}
+              accessibilityLabel={showDemo ? 'Hide form demo' : 'Show form demo'}
+            >
+              <Text style={[s.iconBtnText, showDemo && s.iconBtnTextOn]}>▶</Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
             style={s.iconBtn}
             onPress={() => setSwapping(v => !v)}
@@ -264,6 +276,12 @@ export function ExerciseBlock({
           </TouchableOpacity>
         </View>
       )}
+
+      {showDemo ? (
+        <Pressable style={s.demo} onPress={() => setShowDemo(false)}>
+          <ExerciseDemo name={exercise.name} />
+        </Pressable>
+      ) : null}
 
       {/* Coaching cue from the program */}
       {exercise.note ? <Text style={s.note}>{exercise.note}</Text> : null}
@@ -476,6 +494,9 @@ const s = StyleSheet.create({
   headerActions: { flexDirection: 'row', gap: 4 },
   iconBtn: { padding: 6, minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' },
   iconBtnText: { color: C.text3, fontSize: 16 },
+  iconBtnOn: { backgroundColor: C.surface2, borderRadius: 10 },
+  iconBtnTextOn: { color: C.accent },
+  demo: { marginHorizontal: 14, marginBottom: 10 },
   swapRow: {
     flexDirection: 'row',
     alignItems: 'center',
