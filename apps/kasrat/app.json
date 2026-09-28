@@ -2,7 +2,7 @@
   "expo": {
     "name": "Kasrat",
     "slug": "kasrat",
-    "version": "1.0.21",
+    "version": "1.0.22",
     "orientation": "portrait",
     "scheme": "kasrat",
     "userInterfaceStyle": "dark",
