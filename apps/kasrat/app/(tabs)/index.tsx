@@ -104,9 +104,9 @@ export default function TodayScreen() {
   }, [activeWorkout?.id]);
 
   const activeProgram = getProgram(ACTIVE_PROGRAM_ID) ?? PROGRAMS[0];
-  // Sessions per week comes from the program's own cycle length, so switching programs
-  // (5-day → 3-day) re-bases the streak instead of leaving every week short.
-  const weeklyTarget = activeProgram?.daysPerCycle ?? 5;
+  // Sessions per week comes from the program (its planned frequency, else its cycle length),
+  // so switching programs re-bases the streak instead of leaving every week short.
+  const weeklyTarget = activeProgram?.perWeek ?? activeProgram?.daysPerCycle ?? 5;
 
   const { streakWeeks, thisWeekCount } = useMemo(() => {
     const TARGET = weeklyTarget;

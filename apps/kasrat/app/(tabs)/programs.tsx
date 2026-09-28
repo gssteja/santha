@@ -110,7 +110,7 @@ export default function ProgramsScreen() {
                   )}
                 </View>
                 <Text style={styles.programMeta}>
-                  {program.split} · {program.daysPerCycle}-day cycle · {program.author}
+                  {program.split} · {program.daysPerCycle}-day cycle{program.perWeek ? ` · ${program.perWeek}×/wk` : ''} · {program.author}
                 </Text>
               </View>
               <Text style={[styles.chevron, isOpen && styles.chevronOpen]}>›</Text>

@@ -46,19 +46,19 @@ export function restForExercise(name: string, _muscle?: string): number {
   const n = name.replace(/\s*\(.*?\)\s*/g, ' ').replace(/\s+/g, ' ').trim().toLowerCase();
 
   // 3 min — heavy barbell compounds: CNS + ATP recovery critical for next set quality
-  if (/(squat|deadlift|bench press|overhead press|barbell overhead|barbell row)/.test(n)) return 180;
+  if (/(squat|deadlift|bench press|incline press|overhead press|barbell overhead|barbell row)/.test(n)) return 180;
 
   // 2.5 min — moderate / bodyweight compounds: demanding but less systemically taxing
   if (/(pull.?up|weighted dip|\bdip\b|romanian deadlift|hip thrust|bulgarian|hack squat)/.test(n)) return 150;
 
   // 2 min — machine compounds, unilateral pressing, moderate back work
-  if (/(lat pulldown|seated cable row|cable row|chest.supported row|leg press|incline dumbbell press|arnold press|shoulder press)/.test(n)) return 120;
+  if (/(lat pulldown|seated cable row|cable row|chest.supported row|kroc row|leg press(?! calf)|larsen press|incline dumbbell press|arnold press|shoulder press)/.test(n)) return 120;
 
   // 90s — heavier isolation or demanding bodyweight finishers
   if (/(upright row|lying leg curl|unilateral lat|push.?up)/.test(n)) return 90;
 
   // 60s — standard isolation: curls, raises, flyes, pressdowns, core
-  if (/(curl|lateral raise|fl[iy]|pushdown|pressdown|extension|crunch|leg raise|face pull|shrug|calf raise|glute bridge|plank|ab rollout|hanging leg|cable overhead|rope face)/.test(n)) return 60;
+  if (/(curl|lateral raise|y.raise|front raise|fl[iy]|pushdown|pressdown|extension|crunch|leg raise|face pull|shrug|calf raise|glute bridge|plank|ab rollout|hanging leg|cable overhead|rope face)/.test(n)) return 60;
 
   return 90;
 }
