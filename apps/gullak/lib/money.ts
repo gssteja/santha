@@ -73,6 +73,15 @@ export function shortDate(date: string): string {
   return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
 
+// "today", "tomorrow", "in 3 days", "4 days ago"
+export function relDays(date: string, asOf: string = todayISO()): string {
+  const n = Math.round((parseISO(date).getTime() - parseISO(asOf).getTime()) / 86400000);
+  if (n === 0) return 'today';
+  if (n === 1) return 'tomorrow';
+  if (n === -1) return 'yesterday';
+  return n > 0 ? `in ${n} days` : `${-n} days ago`;
+}
+
 export function parseAmount(s: string): number {
   const n = Number(s.replace(/,/g, '').trim());
   return Number.isFinite(n) ? n : NaN;

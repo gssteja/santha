@@ -23,6 +23,7 @@ export default function RootLayout() {
               <Stack.Screen name="(tabs)" />
               <Stack.Screen name="add" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
               <Stack.Screen name="debt" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
+              <Stack.Screen name="account" options={{ presentation: 'modal', animation: 'slide_from_bottom' }} />
             </Stack>
           </View>
         </FinanceProvider>

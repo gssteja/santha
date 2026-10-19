@@ -26,6 +26,20 @@ export interface Debt {
   rate: number; // % per year; 0 for a 0% promo card
   promoEnd?: string; // 0% promo end date (deferred-interest cards)
   planned: number; // planned monthly payment, USD
+  // Credit cards: the latest statement's amount and due date, and when the next one closes.
+  statementBalance?: number;
+  dueDate?: string;
+  statementDate?: string;
+  updatedAt: number;
+  deleted?: boolean;
+}
+
+// A bank balance as you last checked it; not adjusted by logged expenses.
+export interface Account {
+  id: string;
+  name: string;
+  balance: number; // USD
+  asOf: string;
   updatedAt: number;
   deleted?: boolean;
 }
@@ -39,6 +53,7 @@ export interface Settings {
 export interface FinanceData {
   txns: Txn[];
   debts: Debt[];
+  accounts: Account[];
   settings: Settings;
 }
 

@@ -3,22 +3,31 @@ import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Bar, Card, MonthSwitcher, Row, Screen, s } from '@/components/ui';
 import { C, F, RADIUS } from '@/constants/theme';
-import { debtStatus, project } from '@/lib/debt';
-import { fmt, monthKey, monthLabel, shortDate, todayISO } from '@/lib/money';
+import { debtStatus, isCard, project, statementDue } from '@/lib/debt';
+import { fmt, monthKey, monthLabel, relDays, shortDate, todayISO, toUSD } from '@/lib/money';
 import { monthSummary, txnTitle } from '@/lib/summary';
 import { useFinance } from '@/store/FinanceContext';
 import type { TxnKind } from '@/types/finance';
 
 export default function Home() {
   const router = useRouter();
-  const { txns, debts, settings } = useFinance();
+  const { txns, debts, accounts, settings } = useFinance();
   const [month, setMonth] = useState(monthKey(todayISO()));
   const sum = useMemo(() => monthSummary(txns, month, settings.fx), [txns, month, settings.fx]);
   const recent = useMemo(() => txns.filter(t => monthKey(t.date) === month).slice(0, 6), [txns, month]);
   const debtRows = useMemo(() => debts.map(d => {
     const st = debtStatus(d, txns, settings.fx);
-    return { d, st, pj: project(d, st, settings.fx) };
+    return { d, st, pj: project(d, st, settings.fx), sd: statementDue(d, st) };
   }), [debts, txns, settings.fx]);
+
+  const today = todayISO();
+  const cash = accounts.reduce((a, x) => a + x.balance, 0);
+  // Unpaid statements by due date, then cards whose next statement is still to close.
+  const dues = debtRows.filter(r => r.sd && r.sd.left > 0.005).sort((a, b) => a.sd!.due.localeCompare(b.sd!.due));
+  const dueTotal = dues.reduce((a, r) => a + toUSD(r.sd!.left, r.d.currency, settings.fx), 0);
+  const closing = debtRows
+    .filter(r => r.d.statementDate && r.d.statementDate >= today && r.st.balance > 0.5)
+    .sort((a, b) => a.d.statementDate!.localeCompare(b.d.statementDate!));
 
   const add = (kind: TxnKind) => router.push({ pathname: '/add', params: { kind } });
   const overBudget = sum.spent > settings.budget;
@@ -69,6 +78,46 @@ export default function Home() {
         )}
       </Card>
 
+      <Text style={s.sectionTitle}>Cash</Text>
+      <Card>
+        <Text style={s.muted}>In the bank</Text>
+        <Text style={s.big}>{fmt(cash, 'USD')}</Text>
+        {dueTotal > 0.005 ? (
+          <Text style={[s.muted, cash - dueTotal < 0 && { color: C.red }]}>
+            {fmt(cash - dueTotal, 'USD')} after the {fmt(dueTotal, 'USD')} of statements due
+          </Text>
+        ) : null}
+        <View style={{ marginTop: 8 }}>
+          {accounts.map(a => (
+            <Row key={a.id} left={a.name} sub={`as of ${shortDate(a.asOf)}`} right={fmt(a.balance, 'USD')}
+              onPress={() => router.push({ pathname: '/account', params: { id: a.id } })} />
+          ))}
+        </View>
+        <Pressable onPress={() => router.push('/account')} hitSlop={8} style={{ paddingTop: 12 }}>
+          <Text style={st.link}>+ Add account</Text>
+        </Pressable>
+      </Card>
+
+      {dues.length || closing.length ? (
+        <>
+          <Text style={s.sectionTitle}>Coming up</Text>
+          <Card>
+            {dues.map(({ d, sd }) => (
+              <Row key={d.id} left={d.name}
+                sub={`Statement ${sd!.overdue ? 'was due' : 'due'} ${shortDate(sd!.due)} · ${relDays(sd!.due)}`}
+                right={fmt(sd!.left, d.currency)} rightColor={sd!.overdue ? C.red : undefined}
+                onPress={() => router.push({ pathname: '/add', params: { kind: 'debt', debtId: d.id } })} />
+            ))}
+            {closing.map(({ d, st: status }) => (
+              <Row key={`${d.id}-close`} left={d.name}
+                sub={`Statement closes ${shortDate(d.statementDate!)} · ${relDays(d.statementDate!)}`}
+                right={fmt(status.balance, d.currency)} rightColor={C.text3}
+                onPress={() => router.push('/debts')} />
+            ))}
+          </Card>
+        </>
+      ) : null}
+
       {debtRows.length ? (
         <>
           <Text style={s.sectionTitle}>Debts</Text>
@@ -77,7 +126,7 @@ export default function Home() {
               <Row
                 key={d.id}
                 left={d.name}
-                sub={status.balance < 0.5 ? 'Paid off' : pj.payoffMonth ? `Paid off by ${monthLabel(pj.payoffMonth)} at plan pace` : 'Plan payment does not cover interest'}
+                sub={status.balance < 0.5 ? 'Paid off' : isCard(d) ? 'Card, paid by statement' : pj.payoffMonth ? `Paid off by ${monthLabel(pj.payoffMonth)} at plan pace` : 'Plan payment does not cover interest'}
                 right={fmt(status.balance, d.currency)}
                 onPress={() => router.push('/debts')}
               />
@@ -130,5 +179,6 @@ const st = StyleSheet.create({
   statVal: { color: C.text, fontSize: F.lg, fontWeight: '700', marginTop: 2, fontVariant: ['tabular-nums'] },
   between: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   catName: { color: C.text2, fontSize: F.sm },
+  link: { color: C.accent, fontSize: F.sm, fontWeight: '700' },
   catVal: { color: C.text, fontSize: F.sm, fontWeight: '600', fontVariant: ['tabular-nums'] },
 });

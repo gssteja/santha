@@ -22,16 +22,26 @@ export default function EditDebt() {
   const [rate, setRate] = useState(debt ? String(debt.rate) : '0');
   const [planned, setPlanned] = useState(debt ? String(debt.planned) : '');
   const [promoEnd, setPromoEnd] = useState(debt?.promoEnd ?? '');
+  const [stmt, setStmt] = useState(debt?.statementBalance != null ? String(debt.statementBalance) : '');
+  const [dueDate, setDueDate] = useState(debt?.dueDate ?? '');
+  const [stmtDate, setStmtDate] = useState(debt?.statementDate ?? '');
 
   const save = () => {
     const b = parseAmount(balance), r = parseAmount(rate), p = parseAmount(planned || '0');
+    const sb = stmt.trim() ? parseAmount(stmt) : undefined;
     if (!name.trim()) return Alert.alert('Give it a name');
     if (!(b >= 0)) return Alert.alert('Enter the balance');
     if (!(r >= 0)) return Alert.alert('Interest rate must be 0 or more');
     if (!(p >= 0)) return Alert.alert('Planned payment must be 0 or more');
     if (!isValidISO(startDate)) return Alert.alert('Balance date must look like 2026-10-11');
     if (promoEnd && !isValidISO(promoEnd)) return Alert.alert('Promo end must look like 2027-03-31, or be empty');
-    saveDebt({ id: debt?.id, name: name.trim(), currency, startBalance: b, startDate, rate: r, planned: p, promoEnd: promoEnd || undefined });
+    if (sb !== undefined && !(sb >= 0)) return Alert.alert('Statement balance must be 0 or more, or empty');
+    if (dueDate && !isValidISO(dueDate)) return Alert.alert('Due date must look like 2026-11-04, or be empty');
+    if (stmtDate && !isValidISO(stmtDate)) return Alert.alert('Next statement date must look like 2026-11-06, or be empty');
+    saveDebt({
+      id: debt?.id, name: name.trim(), currency, startBalance: b, startDate, rate: r, planned: p, promoEnd: promoEnd || undefined,
+      statementBalance: sb, dueDate: dueDate || undefined, statementDate: stmtDate || undefined,
+    });
     router.back();
   };
 
@@ -58,6 +68,15 @@ export default function EditDebt() {
       <Field label="Interest rate (% per year)" value={rate} onChangeText={setRate} keyboardType="decimal-pad" />
       <Field label="Planned monthly payment ($)" value={planned} onChangeText={setPlanned} keyboardType="decimal-pad" />
       <Field label="0% promo ends (optional, YYYY-MM-DD)" value={promoEnd} onChangeText={setPromoEnd} placeholder="leave empty if none" />
+
+      <Text style={[s.sectionTitle, { marginTop: 4 }]}>Card statement</Text>
+      <Field label="Statement balance ($, optional)" value={stmt} onChangeText={setStmt} keyboardType="decimal-pad" placeholder="leave empty if no statement yet" />
+      <Field label="Statement due (optional, YYYY-MM-DD)" value={dueDate} onChangeText={setDueDate} placeholder="leave empty if none" />
+      <Field label="Next statement closes (optional, YYYY-MM-DD)" value={stmtDate} onChangeText={setStmtDate} placeholder="leave empty if unknown" />
+      <Text style={[s.muted, { marginBottom: 16 }]}>
+        For a card, put the total owed in Balance and leave the planned payment at 0. Payments logged since the balance date
+        count toward the statement.
+      </Text>
       <Text style={[s.muted, { marginBottom: 16 }]}>
         If the bank changes a floating rate, or a statement shows a different balance, update the balance and its date here.
         Payments logged before that date are then ignored for this debt.

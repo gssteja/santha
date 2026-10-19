@@ -106,3 +106,23 @@ export function promoMonthly(debt: Debt, status: DebtStatus, asOf: string = toda
   for (let k = monthKey(debt.startDate > asOf ? debt.startDate : asOf); k <= lastKey; k = addMonths(k, 1)) n++;
   return n > 0 ? status.balance / n : status.balance;
 }
+
+// A card paid off by statement rather than on a monthly plan.
+export function isCard(debt: Debt): boolean {
+  return !debt.planned && !!(debt.dueDate || debt.statementDate);
+}
+
+export interface StatementDue {
+  amount: number;
+  left: number; // after payments logged since the balance date
+  due: string;
+  overdue: boolean;
+}
+
+// The latest statement on a card. Payments logged on/after the balance date count toward it,
+// so update the balance date whenever you enter a new statement.
+export function statementDue(debt: Debt, status: DebtStatus, asOf: string = todayISO()): StatementDue | null {
+  if (!debt.dueDate || !debt.statementBalance) return null;
+  const left = Math.min(status.balance, Math.max(0, debt.statementBalance - status.paid));
+  return { amount: debt.statementBalance, left, due: debt.dueDate, overdue: left > 0.005 && debt.dueDate < asOf };
+}

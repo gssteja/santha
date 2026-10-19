@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { SERVER_URL, STORE_KEY } from '@/constants/config';
 import { uid } from '@/lib/money';
-import type { Debt, FinanceData, Settings, Txn } from '@/types/finance';
+import type { Account, Debt, FinanceData, Settings, Txn } from '@/types/finance';
 
 const STORAGE_KEY = 'gullak.v1';
 
@@ -20,6 +20,7 @@ const SEED: FinanceData = {
       startDate: '2026-10-11', rate: 0, promoEnd: '2027-02-01', planned: 578, updatedAt: 2,
     },
   ],
+  accounts: [],
   settings: { fx: 95.82, budget: 2080, updatedAt: 1 },
 };
 
@@ -37,6 +38,7 @@ export function mergeData(a: FinanceData, b: FinanceData): FinanceData {
   return {
     txns: mergeList(a.txns, b.txns ?? []),
     debts: mergeList(a.debts, b.debts ?? []),
+    accounts: mergeList(a.accounts ?? [], b.accounts ?? []),
     settings: (b.settings?.updatedAt ?? 0) > (a.settings?.updatedAt ?? 0) ? b.settings : a.settings,
   };
 }
@@ -132,6 +134,18 @@ export function useFinanceStore() {
     update(d => ({ ...d, debts: d.debts.map(x => (x.id === id ? { ...x, deleted: true, updatedAt: Date.now() } : x)) }));
   }, [update]);
 
+  const saveAccount = useCallback((acct: Omit<Account, 'id' | 'updatedAt'> & { id?: string }) => {
+    update(d => {
+      const rec: Account = { ...acct, id: acct.id ?? uid(), updatedAt: Date.now() };
+      const exists = d.accounts.some(x => x.id === rec.id);
+      return { ...d, accounts: exists ? d.accounts.map(x => (x.id === rec.id ? rec : x)) : [...d.accounts, rec] };
+    });
+  }, [update]);
+
+  const deleteAccount = useCallback((id: string) => {
+    update(d => ({ ...d, accounts: d.accounts.map(x => (x.id === id ? { ...x, deleted: true, updatedAt: Date.now() } : x)) }));
+  }, [update]);
+
   const saveSettings = useCallback((patch: Partial<Omit<Settings, 'updatedAt'>>) => {
     update(d => ({ ...d, settings: { ...d.settings, ...patch, updatedAt: Date.now() } }));
   }, [update]);
@@ -141,9 +155,10 @@ export function useFinanceStore() {
     [data.txns],
   );
   const debts = useMemo(() => data.debts.filter(d => !d.deleted), [data.debts]);
+  const accounts = useMemo(() => data.accounts.filter(a => !a.deleted), [data.accounts]);
 
   return {
-    ready, data, txns, debts, settings: data.settings, sync,
-    addTxn, updateTxn, deleteTxn, saveDebt, deleteDebt, saveSettings, syncNow,
+    ready, data, txns, debts, accounts, settings: data.settings, sync,
+    addTxn, updateTxn, deleteTxn, saveDebt, deleteDebt, saveAccount, deleteAccount, saveSettings, syncNow,
   };
 }
