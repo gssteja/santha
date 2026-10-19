@@ -176,7 +176,7 @@ app.delete('/api/workouts/:id', requireAppKey, (req, res) => {
 const FINANCE_FILE = path.join(DATA_DIR, 'finance.json');
 
 function readFinance() {
-  const empty = { txns: [], debts: [], settings: null };
+  const empty = { txns: [], debts: [], accounts: [], settings: null };
   if (!fs.existsSync(FINANCE_FILE)) return empty;
   try { return { ...empty, ...JSON.parse(fs.readFileSync(FINANCE_FILE, 'utf8')) }; } catch { return empty; }
 }
@@ -199,12 +199,14 @@ app.get('/api/finance', requireAppKey, (_req, res) => {
 
 // POST /api/finance/sync — client pushes its full state, gets the merged state back
 app.post('/api/finance/sync', requireAppKey, (req, res) => {
-  const { txns, debts, settings } = req.body || {};
+  const { txns, debts, accounts, settings } = req.body || {};
   if (!Array.isArray(txns) || !Array.isArray(debts)) return res.status(400).json({ error: 'expected txns and debts arrays' });
   const cur = readFinance();
   const merged = {
     txns: mergeById(cur.txns, txns),
     debts: mergeById(cur.debts, debts),
+    // Older app builds don't send accounts; keep what the server has.
+    accounts: mergeById(cur.accounts, Array.isArray(accounts) ? accounts : []),
     settings: settings && (!cur.settings || (settings.updatedAt || 0) > (cur.settings.updatedAt || 0)) ? settings : cur.settings,
   };
   fs.writeFileSync(FINANCE_FILE, JSON.stringify(merged, null, 2));
