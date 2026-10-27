@@ -45,29 +45,41 @@ import kotlin.math.tan
 class RtlMapModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("RtlRadioMap")
+
+    /** "streets" (OSM tiles, the outline map wherever none are cached offline) or "outline" (offline only). */
+    Function("getStyle") {
+      val ctx = appContext.reactContext ?: return@Function "streets"
+      ctx.getSharedPreferences("tarang_map", Context.MODE_PRIVATE).getString("style", "streets")
+    }
+
     View(RadarView::class) {
       Events("onSelect")
       Prop("selected") { view: RadarView, hex: String? -> view.setSelected(hex) }
       Prop("focus") { view: RadarView, focus: Map<String, Any?>? -> view.setFocus(focus) }
+      Prop("basemap") { view: RadarView, style: String? -> view.setBasemap(style) }
     }
   }
 }
 
 /**
  * Live plane map, drawn natively from the engine's once-a-second [RadioEngine.PlanesFrame]: OpenStreetMap tiles
- * (darkened on the GPU, cached on disk), range rings around the phone, trails and aircraft coloured by altitude like
- * dump1090's SkyAware map. Drag to pan, pinch or double-tap to zoom, tap a plane to select it (onSelect, with
- * hex "" for a tap on empty map).
+ * (darkened on the GPU, cached on disk) or the bundled offline outline map ([Basemap]), which also fills in
+ * wherever no tile is cached and the phone is offline. On top: range rings around the phone, trails and aircraft
+ * coloured by altitude like dump1090's SkyAware map. Drag to pan, pinch or double-tap to zoom, tap a plane to
+ * select it (onSelect, with hex "" for a tap on empty map).
  */
 class RadarView(context: Context, appContext: AppContext) : ExpoView(context, appContext) {
   companion object {
-    // OSM's standard tiles: free for light use with a real User-Agent, attribution and local caching
-    // (https://operations.osmfoundation.org/policies/tiles/)
+    // OSM's standard tiles: free for interactive use with a real User-Agent, attribution and local caching, but no
+    // prefetching or "download for offline" (https://operations.osmfoundation.org/policies/tiles/). Offline, the map
+    // shows tiles it has already cached plus the bundled outline map.
     private const val TILE_URL = "https://tile.openstreetmap.org/%d/%d/%d.png"
     private const val TILE_PX = 256
     private const val MIN_ZOOM = 2.0
     private const val MAX_ZOOM = 16.0
-    private const val TILE_MAX_AGE_MS = 30L * 24 * 3600 * 1000
+    private const val TILE_MAX_AGE_MS = 30L * 24 * 3600 * 1000 // then revalidated (If-Modified-Since)
+    private const val TILE_CACHE_BYTES = 300L * 1024 * 1024
+    @Volatile private var trimmed = false
 
     // shared by every map instance: decoded tiles, in-flight fetches, recent failures
     private val tiles = object : LruCache<Long, Bitmap>(40 * 1024 * 1024) {
@@ -136,7 +148,10 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
   private val density = resources.displayMetrics.density
   private val main = Handler(Looper.getMainLooper())
   private val prefs = context.getSharedPreferences("tarang_map", Context.MODE_PRIVATE)
-  private val tileDir = File(context.cacheDir, "osm-tiles").apply { mkdirs() }
+  // in files, not cache: Android may empty the cache dir, and these are the map when offline
+  private val tileDir = File(context.filesDir, "osm-tiles").apply { mkdirs() }
+  private val outline = Basemap.Style(density)
+  private var style = prefs.getString("style", "streets") ?: "streets"
 
   // camera: centre in Mercator units (0..1) and zoom
   private var cx = lonToX(-80.84)
@@ -227,7 +242,28 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
     super.onAttachedToWindow()
     RadioEngine.addPlanesListener(listener)
     frame = RadioEngine.planesFrame
+    Basemap.load(context) { invalidate() }
+    if (!trimmed) {
+      trimmed = true
+      val old = File(context.cacheDir, "osm-tiles") // where 1.1 kept them
+      fetcher.execute {
+        old.deleteRecursively()
+        trimTileCache(tileDir)
+      }
+    }
     invalidate()
+  }
+
+  /** Keeps the tile cache under its cap, dropping the tiles fetched longest ago. */
+  private fun trimTileCache(dir: File) {
+    val files = dir.listFiles() ?: return
+    var total = files.sumOf { it.length() }
+    if (total <= TILE_CACHE_BYTES) return
+    for (f in files.sortedBy { it.lastModified() }) {
+      total -= f.length()
+      f.delete()
+      if (total <= TILE_CACHE_BYTES * 9 / 10) break
+    }
   }
 
   override fun onDetachedFromWindow() {
@@ -235,6 +271,14 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
     main.removeCallbacks(saveCamera)
     saveCamera.run()
     super.onDetachedFromWindow()
+  }
+
+  fun setBasemap(s: String?) {
+    val v = if (s == "outline") "outline" else "streets"
+    if (v == style) return
+    style = v
+    prefs.edit().putString("style", v).apply()
+    invalidate()
   }
 
   fun setSelected(hex: String?) {
@@ -385,27 +429,43 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
 
   private fun fetch(z: Int, x: Int, y: Int, k: Long) {
     var bmp: Bitmap? = null
+    val file = File(tileDir, "${z}_${x}_$y.png")
+    val cached = file.exists()
     try {
-      val file = File(tileDir, "${z}_${x}_$y.png")
-      if (file.exists() && System.currentTimeMillis() - file.lastModified() < TILE_MAX_AGE_MS) {
+      if (cached && System.currentTimeMillis() - file.lastModified() < TILE_MAX_AGE_MS) {
         bmp = decode(file.readBytes())
       }
       if (bmp == null) {
         val conn = URL(TILE_URL.format(z, x, y)).openConnection() as HttpURLConnection
         conn.connectTimeout = 8000
         conn.readTimeout = 10000
-        conn.setRequestProperty("User-Agent", "Tarang/1.1 (personal Android RTL-SDR radio app)")
+        conn.setRequestProperty("User-Agent", "Tarang/1.2 (personal Android RTL-SDR radio app)")
+        if (cached) conn.ifModifiedSince = file.lastModified()
         try {
-          if (conn.responseCode == 200) {
-            val bytes = conn.inputStream.use { it.readBytes() }
-            bmp = decode(bytes)
-            if (bmp != null) file.writeBytes(bytes)
+          when (conn.responseCode) {
+            200 -> {
+              val bytes = conn.inputStream.use { it.readBytes() }
+              bmp = decode(bytes)
+              if (bmp != null) file.writeBytes(bytes)
+            }
+            304 -> {
+              file.setLastModified(System.currentTimeMillis())
+              bmp = decode(file.readBytes())
+            }
           }
         } finally {
           conn.disconnect()
         }
       }
     } catch (_: Exception) {
+    }
+    if (bmp == null && cached) {
+      // offline (or the server is unhappy): an old tile beats no tile
+      bmp = try {
+        decode(file.readBytes())
+      } catch (_: Exception) {
+        null
+      }
     }
     synchronized(inFlight) {
       inFlight.remove(k)
@@ -420,7 +480,8 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
   private fun decode(bytes: ByteArray): Bitmap? =
     BitmapFactory.decodeByteArray(bytes, 0, bytes.size, BitmapFactory.Options().apply { inPreferredConfig = Bitmap.Config.RGB_565 })
 
-  private fun drawTiles(canvas: Canvas) {
+  /** Draws the tiles (or only counts, with [draw] false); returns how many visible cells have nothing to show. */
+  private fun drawTiles(canvas: Canvas, draw: Boolean): Int {
     // a tile spans 150-300 dp: sharper than OSM's 256 px at 1 dp each, labels still readable
     val z = (zoom + 0.3).roundToInt().coerceIn(MIN_ZOOM.toInt(), MAX_ZOOM.toInt() + 1)
     val n = 1 shl z
@@ -431,6 +492,7 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
     val y0 = floor(top).toInt()
     val x1 = floor(left + width / size).toInt()
     val y1 = floor(top + height / size).toInt()
+    var missing = 0
     for (ty in max(y0, 0)..min(y1, n - 1)) {
       for (tx in x0..x1) {
         val wx = ((tx % n) + n) % n
@@ -440,10 +502,11 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
         )
         val bmp = tile(z, wx, ty)
         if (bmp != null) {
-          canvas.drawBitmap(bmp, null, dst, tilePaint)
+          if (draw) canvas.drawBitmap(bmp, null, dst, tilePaint)
           continue
         }
         // until it arrives, stretch the closest cached ancestor over the gap
+        var covered = false
         for (up in 1..4) {
           val pz = z - up
           if (pz < 0) break
@@ -452,11 +515,14 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
           val sx = (wx and ((1 shl up) - 1)) * part
           val sy = (ty and ((1 shl up) - 1)) * part
           src.set(sx, sy, sx + part, sy + part)
-          canvas.drawBitmap(parent, src, dst, tilePaint)
+          if (draw) canvas.drawBitmap(parent, src, dst, tilePaint)
+          covered = true
           break
         }
+        if (!covered) missing++
       }
     }
+    return missing
   }
 
   // ---------- overlays ----------
@@ -529,7 +595,11 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
   override fun onDraw(canvas: Canvas) {
     canvas.clipRect(0, 0, width, height) // React Native parents don't clip their children
     canvas.drawRect(0f, 0f, width.toFloat(), height.toFloat(), bg)
-    drawTiles(canvas)
+    val streets = style == "streets"
+    // the outline map shows through wherever no tile (or stretched ancestor) is available, e.g. offline
+    val gaps = !streets || drawTiles(canvas, draw = false) > 0
+    if (gaps) Basemap.draw(canvas, Basemap.View(cx, cy, zoom, worldPx, width, height), outline, density)
+    if (streets) drawTiles(canvas, draw = true)
     val f = frame
     val lat = f?.rxLat ?: RadioEngine.rxLat
     val lon = f?.rxLon ?: RadioEngine.rxLon
@@ -548,7 +618,11 @@ class RadarView(context: Context, appContext: AppContext) : ExpoView(context, ap
       }
       selPlane?.let { drawPlane(canvas, it, true) } // on top
     }
-    val text = "© OpenStreetMap contributors"
+    val text = when {
+      !streets -> "Natural Earth · OurAirports"
+      gaps -> "© OpenStreetMap contributors · Natural Earth"
+      else -> "© OpenStreetMap contributors"
+    }
     val w = attrib.measureText(text)
     val pad = 4 * density
     canvas.drawRect(width - w - 2 * pad, height - 14 * density, width.toFloat(), height.toFloat(), attribBg)

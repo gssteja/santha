@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Radio, RadarView, type Aircraft, type MapFocus, type RadioState } from '../../modules/rtl-radio';
+import { getMapStyle, Radio, RadarView, type Aircraft, type MapFocus, type MapStyle, type RadioState } from '../../modules/rtl-radio';
 import { C, mono } from '../theme';
 import { Badge, Btn, Chip, s as ui } from '../ui';
 
@@ -38,6 +38,7 @@ export function Planes({ s, bottom }: { s: RadioState; bottom: number }) {
   const [sel, setSel] = useState<string | null>(null);
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [sort, setSort] = useState<Sort>('dist');
+  const [basemap, setBasemap] = useState<MapStyle>(getMapStyle);
   const asked = useRef(false);
   const p = s.planes;
   const tracking = s.running && s.appMode === 'planes' && s.status === 'radio';
@@ -76,16 +77,13 @@ export function Planes({ s, bottom }: { s: RadioState; bottom: number }) {
   return (
     <View style={{ flex: 1 }}>
       <View style={st.mapWrap}>
-        <RadarView style={StyleSheet.absoluteFill} selected={sel} focus={focus} onSelect={(e) => setSel(e.nativeEvent.hex || null)} />
-        <View style={st.status} pointerEvents="none">
-          <View style={[st.dot, { backgroundColor: tracking ? C.ok : s.status === 'error' ? C.danger : C.muted }]} />
-          <Text style={st.statusText} numberOfLines={1}>
-            {status}
-          </Text>
-        </View>
-        <Pressable style={st.meBtn} onPress={centreMe} hitSlop={6}>
-          <Text style={st.meIcon}>◎</Text>
-        </Pressable>
+        <RadarView
+          style={StyleSheet.absoluteFill}
+          selected={sel}
+          focus={focus}
+          basemap={basemap}
+          onSelect={(e) => setSel(e.nativeEvent.hex || null)}
+        />
         {!s.running && (
           <View style={st.overlay} pointerEvents="none">
             <Text style={st.overlayTitle}>Tap Start to track planes</Text>
@@ -95,6 +93,22 @@ export function Planes({ s, bottom }: { s: RadioState; bottom: number }) {
             </Text>
           </View>
         )}
+        <View style={st.status} pointerEvents="none">
+          <View style={[st.dot, { backgroundColor: tracking ? C.ok : s.status === 'error' ? C.danger : C.muted }]} />
+          <Text style={st.statusText} numberOfLines={1}>
+            {status}
+          </Text>
+        </View>
+        <Pressable style={st.meBtn} onPress={centreMe} hitSlop={6}>
+          <Text style={st.meIcon}>◎</Text>
+        </Pressable>
+        <View style={st.styleSeg}>
+          {(['streets', 'outline'] as const).map((m) => (
+            <Pressable key={m} onPress={() => setBasemap(m)} style={[st.styleBtn, basemap === m && st.styleOn]} hitSlop={4}>
+              <Text style={[st.styleText, basemap === m && { color: C.bg }]}>{m === 'streets' ? 'Streets' : 'Offline'}</Text>
+            </Pressable>
+          ))}
+        </View>
       </View>
       {selected && <Detail a={selected} onShow={() => show(selected)} onClose={() => setSel(null)} />}
       <FlatList
@@ -229,6 +243,20 @@ const st = StyleSheet.create({
     justifyContent: 'center',
   },
   meIcon: { color: C.accent, fontSize: 22, marginTop: -2 },
+  styleSeg: {
+    position: 'absolute',
+    left: 10,
+    bottom: 10,
+    flexDirection: 'row',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.line,
+    backgroundColor: 'rgba(18,24,33,0.9)',
+    overflow: 'hidden',
+  },
+  styleBtn: { paddingHorizontal: 10, paddingVertical: 5 },
+  styleOn: { backgroundColor: C.accent },
+  styleText: { color: C.text, fontSize: 12, fontWeight: '600' },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,15,20,0.72)', alignItems: 'center', justifyContent: 'center', padding: 28 },
   overlayTitle: { color: C.text, fontSize: 17, fontWeight: '700', marginBottom: 8 },
   overlayText: { color: C.muted, textAlign: 'center', lineHeight: 19 },

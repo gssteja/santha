@@ -51,7 +51,20 @@ export type SelectEvent = NativeSyntheticEvent<{ hex: string }>;
 /** Camera request for the map: moves once per distinct token. */
 export type MapFocus = { lat: number; lon: number; zoom?: number; token: number };
 
-type RadarViewProps = ViewProps & { selected?: string | null; focus?: MapFocus | null; onSelect?: (e: SelectEvent) => void };
+/** "streets": OpenStreetMap tiles (cached; the outline fills in offline). "outline": the bundled offline map. */
+export type MapStyle = 'streets' | 'outline';
+
+type RadarViewProps = ViewProps & {
+  selected?: string | null;
+  focus?: MapFocus | null;
+  basemap?: MapStyle;
+  onSelect?: (e: SelectEvent) => void;
+};
+
+const mapNative = requireNativeModule<{ getStyle(): MapStyle }>('RtlRadioMap');
+
+/** The map style the user last picked (the map view saves it). */
+export const getMapStyle = (): MapStyle => mapNative.getStyle();
 
 /** Live plane map: drag, pinch and double-tap to move around, tap a plane to select it. */
 export const RadarView: ComponentType<RadarViewProps> = requireNativeViewManager('RtlRadioMap');
