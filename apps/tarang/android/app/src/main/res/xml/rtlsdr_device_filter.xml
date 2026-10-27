@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- RTL2832U dongles (Generic RTL2832U and RTL2832U OEM, which covers the NESDR SMArt and RTL-SDR Blog sticks).
+     Plugging one in offers to open Tarang, and "always" remembers the USB permission. -->
+<resources>
+  <usb-device vendor-id="3034" product-id="10290"/>
+  <usb-device vendor-id="3034" product-id="10296"/>
+</resources>

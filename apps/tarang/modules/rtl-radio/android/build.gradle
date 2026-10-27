@@ -1,0 +1,35 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+
+group = 'com.santha.tarang'
+version = '1.0.0'
+
+def abis = (findProperty('reactNativeArchitectures') ?: 'arm64-v8a').split(',').collect { it.trim() }
+
+android {
+  namespace "expo.modules.rtlradio"
+  ndkVersion rootProject.ext.ndkVersion
+  defaultConfig {
+    minSdkVersion 26
+    versionCode 1
+    versionName '1.0.0'
+    ndk {
+      abiFilters(*abis)
+    }
+    externalNativeBuild {
+      cmake {
+        arguments "-DANDROID_STL=c++_static"
+      }
+    }
+  }
+  externalNativeBuild {
+    cmake {
+      path "src/main/cpp/CMakeLists.txt"
+    }
+  }
+  lint {
+    abortOnError false
+  }
+}
