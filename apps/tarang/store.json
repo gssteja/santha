@@ -1,6 +1,6 @@
 {
   "name": "Tarang",
-  "description": "RTL-SDR radio: FM with RDS, airband, NOAA weather and scanning, straight from the dongle over USB-C",
+  "description": "RTL-SDR radio: FM with RDS, airband, NOAA weather and scanning, a live plane map (ADS-B) and 433 MHz sensor decoding (rtl_433), straight from the dongle over USB-C",
   "icon": "📻",
   "category": "radio"
 }

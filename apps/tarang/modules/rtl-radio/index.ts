@@ -11,6 +11,7 @@ type RtlRadioNative = {
   command(cmd: RadioCommand): void;
   start(): Promise<boolean>;
   stop(): void;
+  locate(fresh: boolean): Promise<{ lat: number; lon: number; accuracy: number } | null>;
   openRecording(id: string): void;
   deleteRecording(id: string): void;
   addListener(event: 'onState', listener: (s: Partial<RadioState>) => void): EventSubscription;
@@ -23,9 +24,14 @@ export const Radio = {
   command: (cmd: RadioCommand) => native.command(cmd),
   start: () => native.start(),
   stop: () => native.stop(),
+  /**
+   * Asks for location permission and gives the engine the phone's position; null if denied or unavailable.
+   * [fresh] skips fixes more than a minute old (otherwise anything from the last half hour will do).
+   */
+  locate: (fresh = false) => native.locate(fresh),
   openRecording: (id: string) => native.openRecording(id),
   deleteRecording: (id: string) => native.deleteRecording(id),
-  /** State updates a few times a second; list fields (hits, favorites, survey, rdsNames) only when they change. */
+  /** State updates a few times a second; lists (hits, favorites, survey, rdsNames, planes, sensors) only when they change. */
   subscribe: (listener: (s: Partial<RadioState>) => void) => native.addListener('onState', listener),
 };
 
@@ -38,3 +44,14 @@ export const SpectrumView: ComponentType<TuneViewProps> = requireNativeViewManag
 
 /** Band activity chart from the last sweep: tap to tune to the strongest signal under your finger. */
 export const SweepView: ComponentType<TuneViewProps> = requireNativeViewManager('RtlRadioSweep');
+
+/** hex is "" when the tap missed every plane. */
+export type SelectEvent = NativeSyntheticEvent<{ hex: string }>;
+
+/** Camera request for the map: moves once per distinct token. */
+export type MapFocus = { lat: number; lon: number; zoom?: number; token: number };
+
+type RadarViewProps = ViewProps & { selected?: string | null; focus?: MapFocus | null; onSelect?: (e: SelectEvent) => void };
+
+/** Live plane map: drag, pinch and double-tap to move around, tap a plane to select it. */
+export const RadarView: ComponentType<RadarViewProps> = requireNativeViewManager('RtlRadioMap');

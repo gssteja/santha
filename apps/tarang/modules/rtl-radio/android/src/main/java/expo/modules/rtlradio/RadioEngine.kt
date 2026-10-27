@@ -6,8 +6,11 @@ import android.hardware.usb.UsbManager
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
+import expo.modules.rtlradio.dsp.AdsbDecoder
 import expo.modules.rtlradio.dsp.Dsp
+import expo.modules.rtlradio.dsp.Plane
 import expo.modules.rtlradio.dsp.RdsInfo
+import expo.modules.rtlradio.dsp.SensorDecoder
 import expo.modules.rtlradio.usb.RtlSdr
 import expo.modules.rtlradio.usb.RtlSdrException
 import org.json.JSONArray
@@ -18,16 +21,22 @@ import java.util.Locale
 import java.util.concurrent.ConcurrentLinkedQueue
 import java.util.concurrent.CopyOnWriteArrayList
 import kotlin.math.abs
+import kotlin.math.asin
+import kotlin.math.atan2
 import kotlin.math.ceil
+import kotlin.math.cos
 import kotlin.math.floor
 import kotlin.math.log10
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * The radio: owns the dongle, the DSP and the audio output on one thread, and runs listening (one or two
  * channels), scanning, the FM station survey and the band activity sweep. A port of the Mac radio panel's
- * Radio class (server.py).
+ * Radio class (server.py). The same thread can instead track planes (ADS-B at 1090 MHz, the Mac's dump1090)
+ * or decode wireless sensors (rtl_433's decoders, hopping 433.92 / 315 / 915 MHz): see [appMode].
  *
  * Commands arrive from JS as maps and are applied on the radio thread between blocks. State goes back to JS
  * a few times a second through [stateListener]; the spectrum goes straight to native views through
@@ -54,6 +63,16 @@ object RadioEngine {
   private const val NO_DONGLE_STOP_MS = 30_000L // give up (and stop the service) if the dongle stays away this long
   private const val STATE_INTERVAL_MS = 250L
   private const val FFT_N = 2048
+  private const val ADSB_FREQ = 1_090_000_000L
+  private const val SENSOR_FS = 1_000_000       // rtl_433's rate when 915 MHz is in the hop list
+  private const val SENSOR_BLOCK = 100_000      // 100 ms
+  private const val HOP_MS = 40_000L            // like the Mac's rtl_433 -H 40
+  private val SENSOR_BANDS = longArrayOf(433_920_000L, 315_000_000L, 915_000_000L)
+  private val SENSOR_SKIP = setOf(
+    "time", "model", "id", "channel", "mic", "mod", "freq", "freq1", "freq2", "rssi", "snr", "noise", "protocol", "subtype",
+    "raw_msg", "rows", "codes", "len", "data",
+  )
+  private const val MAX_TRAIL = 400
 
   val DEFAULT_BW = mapOf("AM" to 8000, "NFM" to 12500, "WFM" to 200000, "USB" to 2800, "LSB" to 2800, "CW" to 500)
 
@@ -113,6 +132,34 @@ object RadioEngine {
   /** Last band sweep, for the native sweep chart: SNR in dB per SWEEP_STEP bin from [start]. */
   class SweepData(val start: Long, val step: Long, val bins: FloatArray, val done: Boolean)
 
+  /** Once a second while tracking planes, for the native map: aircraft, their trails (lat, lon, alt triplets). */
+  class PlanesFrame(val planes: List<Plane>, val trails: Map<Int, FloatArray>, val rxLat: Double?, val rxLon: Double?)
+
+  private class Trail {
+    var pts = FloatArray(96)
+    var n = 0
+
+    fun add(lat: Double, lon: Double, alt: Int) {
+      if (n > 0) {
+        val dLat = lat - pts[n * 3 - 3]
+        val dLon = (lon - pts[n * 3 - 2]) * cos(Math.toRadians(lat))
+        if (dLat * dLat + dLon * dLon < 1e-6) return // closer than ~110 m to the last point
+      }
+      if (n >= MAX_TRAIL) {
+        System.arraycopy(pts, 3, pts, 0, (n - 1) * 3)
+        n--
+      } else if ((n + 1) * 3 > pts.size) {
+        pts = pts.copyOf(pts.size * 2)
+      }
+      pts[n * 3] = lat.toFloat()
+      pts[n * 3 + 1] = lon.toFloat()
+      pts[n * 3 + 2] = alt.toFloat()
+      n++
+    }
+
+    fun copy(): FloatArray = pts.copyOf(n * 3)
+  }
+
   // ---------- settings (persisted) ----------
   @Volatile var freq = 104_700_000L
     private set
@@ -127,6 +174,14 @@ object RadioEngine {
   @Volatile private var nr = false
   @Volatile private var favorites: List<JSONObject> = emptyList()
   @Volatile var label = ""
+    private set
+  @Volatile var rxLat: Double? = null // the phone's location, for the plane map and local position decoding
+    private set
+  @Volatile var rxLon: Double? = null
+    private set
+
+  /** What the dongle is for: "radio" (listen/scan), "planes" (ADS-B) or "sensors" (rtl_433). Follows the open tab. */
+  @Volatile var appMode = "radio"
     private set
 
   // ---------- runtime state ----------
@@ -167,6 +222,29 @@ object RadioEngine {
   private var lastEmit = 0L
   private var noDongleSince = 0L
 
+  // ---------- planes + sensors ----------
+  private var hwMode = "radio" // what the dongle is currently set up for
+  private var hwRate = FS
+  private var adsb: AdsbDecoder? = null
+  private var rxDirty = true
+  @Volatile var planesFrame: PlanesFrame? = null
+    private set
+  private val planesListeners = CopyOnWriteArrayList<() -> Unit>()
+  private val trails = HashMap<Int, Trail>()
+  private var lastPlanesMs = 0L
+  private var adsbMessages = 0L
+  private var planesInfo: Map<String, Any?>? = null
+  private var planesVersion = 0
+  private var sentPlanesVersion = -1
+  private var sensorDec: SensorDecoder? = null
+  private var sensorDecoders = 0
+  private val sensorDevices = HashMap<String, HashMap<String, Any?>>() // guarded by itself: JS reads it too
+  private var sensorMessages = 0
+  private var hopIdx = 0
+  private var hopAt = 0L
+  private var sensorsVersion = 0
+  private var sentSensorsVersion = -1
+
   private val lock = Any()
   private val cmds = ConcurrentLinkedQueue<Map<String, Any?>>()
   private var thread: Thread? = null
@@ -183,6 +261,8 @@ object RadioEngine {
     set(value) {
       field = value
       sentListsVersion = -1
+      sentPlanesVersion = -1
+      sentSensorsVersion = -1
     }
 
   /** Called with a short "now playing" line whenever it changes (for the notification). */
@@ -196,6 +276,10 @@ object RadioEngine {
   fun removeSpectrumListener(l: (SpectrumFrame) -> Unit) = spectrumListeners.remove(l)
 
   fun addSweepListener(l: () -> Unit) = sweepListeners.add(l)
+
+  fun addPlanesListener(l: () -> Unit) = planesListeners.add(l)
+
+  fun removePlanesListener(l: () -> Unit) = planesListeners.remove(l)
 
   fun removeSweepListener(l: () -> Unit) = sweepListeners.remove(l)
 
@@ -224,6 +308,10 @@ object RadioEngine {
       emptyList()
     }
     label = p.getString("label", "") ?: ""
+    if (p.contains("rx_lat")) {
+      rxLat = p.getString("rx_lat", null)?.toDoubleOrNull()
+      rxLon = p.getString("rx_lon", null)?.toDoubleOrNull()
+    }
   }
 
   private fun saveSettings() {
@@ -239,6 +327,8 @@ object RadioEngine {
       .putBoolean("nr", nr)
       .putString("favorites", JSONArray(favorites).toString())
       .putString("label", label)
+      .putString("rx_lat", rxLat?.toString())
+      .putString("rx_lon", rxLon?.toString())
       .apply()
   }
 
@@ -277,7 +367,12 @@ object RadioEngine {
       squelchOpen = false
       rds = null
       scan = null
+      planesFrame = null
+      planesInfo = null
+      trails.clear()
+      planesVersion++
     }
+    for (l in planesListeners) l()
     emitState(force = true)
   }
 
@@ -309,10 +404,13 @@ object RadioEngine {
         }
         noDongleSince = 0
         try {
+          if (appMode != hwMode) switchHw(appMode)
           val sc = scan
-          when (sc?.state) {
-            "search", "survey" -> scanStep(dsp, sc)
-            "sweep" -> sweepStep(dsp, sc)
+          when {
+            hwMode == "planes" -> planesBlock(dsp)
+            hwMode == "sensors" -> sensorsBlock(dsp)
+            sc?.state == "search" || sc?.state == "survey" -> scanStep(dsp, sc)
+            sc?.state == "sweep" -> sweepStep(dsp, sc)
             else -> listenBlock(dsp, audio)
           }
         } catch (e: RtlSdrException) {
@@ -331,6 +429,10 @@ object RadioEngine {
       closeDevice()
       audio.release()
       dsp.release()
+      adsb?.release()
+      adsb = null
+      sensorDec?.release()
+      sensorDec = null
     }
   }
 
@@ -384,6 +486,8 @@ object RadioEngine {
     }
     dev = d
     directSampling = false
+    hwMode = "radio"
+    hwRate = FS
     deviceName = listOf(device.manufacturerName, device.productName).filterNotNull().joinToString(" ").ifBlank { "RTL-SDR" } +
       " · ${d.tunerName}"
     hwCenter = null
@@ -798,6 +902,179 @@ object RadioEngine {
     applyTune(snapped, bandMode(snapped), null, null)
   }
 
+  // ---------- planes + sensors ----------
+
+  /** Reconfigures the dongle for [want]: sample rate (with the stream stopped) and the gain each decoder expects. */
+  private fun switchHw(want: String) {
+    val d = dev ?: return
+    if (want != "radio") stopRecording()
+    val rate = if (want == "sensors") SENSOR_FS else FS
+    if (rate != hwRate) {
+      withStreamStopped(d) { d.setSampleRate(rate) }
+      hwRate = rate
+    }
+    when (want) {
+      "planes" -> d.setGain(gains.lastOrNull()) // dump1090's default: the most gain the tuner has
+      "sensors" -> d.setGain(null) // rtl_433's default: the tuner's AGC
+      else -> d.setGain(gain)
+    }
+    hwMode = want
+    hwCenter = null
+    demodDirty = true
+    demodBDirty = true
+    snr = 0.0
+    squelchOpen = false
+    rds = null
+    stereoActive = false
+    if (want == "sensors") {
+      hopIdx = 0
+      hopAt = 0
+    }
+    emitState(force = true)
+  }
+
+  private fun planesBlock(dsp: Dsp) {
+    tuneHw(dsp, ADSB_FREQ)
+    readBlock(dsp, BLOCK)
+    val now = SystemClock.elapsedRealtime()
+    val t0 = System.nanoTime()
+    val a = adsb ?: AdsbDecoder().also {
+      adsb = it
+      rxDirty = true
+    }
+    if (rxDirty) {
+      a.setReceiver(rxLat, rxLon)
+      rxDirty = false
+    }
+    a.process(dsp.iq, BLOCK, now)
+    blocks++
+    workNs += System.nanoTime() - t0
+    if (now - lastPlanesMs >= 1000) publishPlanes(a, now)
+  }
+
+  private fun distanceNm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val r = Math.PI / 180
+    val h = sin((lat2 - lat1) * r / 2).let { it * it } + cos(lat1 * r) * cos(lat2 * r) * sin((lon2 - lon1) * r / 2).let { it * it }
+    return 2 * 3440.065 * asin(sqrt(min(h, 1.0)))
+  }
+
+  private fun bearing(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+    val r = Math.PI / 180
+    val y = sin((lon2 - lon1) * r) * cos(lat2 * r)
+    val x = cos(lat1 * r) * sin(lat2 * r) - sin(lat1 * r) * cos(lat2 * r) * cos((lon2 - lon1) * r)
+    return (atan2(y, x) / r + 360) % 360
+  }
+
+  private fun publishPlanes(a: AdsbDecoder, now: Long) {
+    val dt = now - lastPlanesMs
+    lastPlanesMs = now
+    val planes = a.snapshot(now)
+    val msgs = a.messages
+    val rate = if (dt in 1..5000) (msgs - adsbMessages) * 1000.0 / dt else 0.0
+    adsbMessages = msgs
+    val alive = HashSet<Int>()
+    for (p in planes) {
+      alive.add(p.icao)
+      if (p.hasPos && p.posAgoMs < 5000) trails.getOrPut(p.icao) { Trail() }.add(p.lat, p.lon, if (p.ground) 0 else p.alt ?: -1)
+    }
+    trails.keys.retainAll(alive)
+    val lat = rxLat
+    val lon = rxLon
+    planesFrame = PlanesFrame(planes, trails.mapValues { it.value.copy() }, lat, lon)
+    for (l in planesListeners) l()
+
+    val rows = planes.map { p ->
+      val dist = if (p.hasPos && lat != null && lon != null) distanceNm(lat, lon, p.lat, p.lon) else null
+      mapOf(
+        "hex" to p.hex, "flight" to p.flight, "alt" to p.alt, "gnssAlt" to p.gnssAlt, "gs" to p.gs?.toDouble(), "track" to p.track?.toDouble(),
+        "heading" to p.heading?.toDouble(), "vr" to p.vr, "squawk" to p.squawk, "emergency" to p.emergency, "category" to p.category,
+        "ground" to p.ground, "lat" to if (p.hasPos) p.lat else null, "lon" to if (p.hasPos) p.lon else null,
+        "dist" to dist?.let { Math.round(it * 10) / 10.0 }, "bearing" to if (dist != null) Math.round(bearing(lat!!, lon!!, p.lat, p.lon)).toDouble() else null,
+        "rssi" to Math.round(p.rssi * 10) / 10.0, "messages" to p.messages, "seen" to p.seenAgoMs / 1000.0,
+        "seenPos" to if (p.posAgoMs >= 0) p.posAgoMs / 1000.0 else null,
+      )
+    }
+    planesInfo = mapOf(
+      "aircraft" to rows, "tracked" to planes.size, "withPos" to planes.count { it.hasPos }, "messages" to msgs.toDouble(),
+      "rate" to Math.round(rate * 10) / 10.0,
+    )
+    planesVersion++
+  }
+
+  private fun sensorsBlock(dsp: Dsp) {
+    val now = SystemClock.elapsedRealtime()
+    val s = sensorDec ?: SensorDecoder(SENSOR_FS).also {
+      sensorDec = it
+      sensorDecoders = it.decoders
+    }
+    if (hopAt == 0L || now >= hopAt) {
+      if (hopAt != 0L) hopIdx = (hopIdx + 1) % SENSOR_BANDS.size
+      hopAt = now + HOP_MS
+      tuneHw(dsp, SENSOR_BANDS[hopIdx])
+      s.reset(SENSOR_BANDS[hopIdx])
+      sensorsVersion++
+    }
+    readBlock(dsp, SENSOR_BLOCK)
+    val t0 = System.nanoTime()
+    if (s.process(dsp.iq, SENSOR_BLOCK) > 0) {
+      for (line in s.take()) addSensor(line)
+    }
+    blocks++
+    workNs += System.nanoTime() - t0
+  }
+
+  /** One rtl_433 message: one row per model + id + channel, like the Mac's sensors table. */
+  private fun addSensor(line: String) {
+    val msg = try {
+      JSONObject(line)
+    } catch (e: Exception) {
+      return
+    }
+    val model = msg.optString("model")
+    if (model.isEmpty()) return
+    val id = msg.opt("id")?.toString() ?: ""
+    val ch = msg.opt("channel")?.toString() ?: ""
+    val key = "$model|$id|$ch"
+    val readings = LinkedHashMap<String, Any?>()
+    for (k in msg.keys()) {
+      if (k in SENSOR_SKIP) continue
+      when (val v = msg.get(k)) {
+        is Number -> v.toDouble().takeIf { it.isFinite() }?.let { readings[k] = it }
+        is String, is Boolean -> readings[k] = v
+      }
+    }
+    val now = System.currentTimeMillis().toDouble()
+    synchronized(sensorDevices) {
+      val d = sensorDevices.getOrPut(key) {
+        hashMapOf("key" to key, "model" to model, "id" to id, "channel" to ch, "first" to now, "count" to 0)
+      }
+      d["last"] = now
+      d["readings"] = readings
+      d["freq"] = (if (msg.has("freq")) msg.optDouble("freq") else msg.optDouble("freq1")).takeIf { it.isFinite() }
+      d["rssi"] = msg.optDouble("rssi").takeIf { it.isFinite() }
+      d["snr"] = msg.optDouble("snr").takeIf { it.isFinite() }
+      d["protocol"] = msg.optInt("protocol")
+      d["count"] = (d["count"] as Int) + 1
+      sensorMessages++
+      if (sensorDevices.size > 200) sensorDevices.values.minByOrNull { it["last"] as Double }?.let { sensorDevices.remove(it["key"]) }
+    }
+    sensorsVersion++
+  }
+
+  private fun sensorsInfo(): Map<String, Any?> {
+    val left = max(hopAt - SystemClock.elapsedRealtime(), 0L)
+    val devices = synchronized(sensorDevices) { sensorDevices.values.sortedByDescending { it["last"] as Double }.map { HashMap(it) } }
+    return mapOf(
+      "messages" to sensorMessages,
+      "devices" to devices,
+      "band" to SENSOR_BANDS[hopIdx].toDouble(),
+      "bands" to SENSOR_BANDS.map { it.toDouble() },
+      "hopSeconds" to HOP_MS / 1000,
+      "nextHop" to if (hwMode == "sensors" && hopAt > 0) System.currentTimeMillis() + left.toDouble() else null,
+      "decoders" to sensorDecoders,
+    )
+  }
+
   // ---------- recording ----------
 
   private fun startRecording() {
@@ -1019,6 +1296,24 @@ object RadioEngine {
         scan = null
         return false
       }
+      "app_mode" -> {
+        val m = cmd["mode"] as? String
+        appMode = if (m == "planes" || m == "sensors") m else "radio"
+        return false
+      }
+      "location" -> {
+        rxLat = num(cmd["lat"])
+        rxLon = num(cmd["lon"])
+        rxDirty = true
+      }
+      "sensors_clear" -> {
+        synchronized(sensorDevices) {
+          sensorDevices.clear()
+          sensorMessages = 0
+        }
+        sensorsVersion++
+        return false
+      }
       else -> return false
     }
     return true
@@ -1034,7 +1329,11 @@ object RadioEngine {
     if (l != null) {
       val full = sentListsVersion != listsVersion
       sentListsVersion = listsVersion
-      l(snapshot(full))
+      val planes = sentPlanesVersion != planesVersion
+      sentPlanesVersion = planesVersion
+      val sensors = sentSensorsVersion != sensorsVersion
+      sentSensorsVersion = sensorsVersion
+      l(snapshot(full, planes, sensors))
     }
     val np = nowPlaying()
     if (np != lastNowPlaying) {
@@ -1045,6 +1344,22 @@ object RadioEngine {
 
   fun nowPlaying(): String {
     val parts = ArrayList<String>()
+    when (appMode) {
+      "planes" -> {
+        val f = planesFrame
+        parts.add("Tracking planes")
+        if (f != null) parts.add("${f.planes.size} aircraft, ${f.planes.count { it.hasPos }} on the map")
+        if (status == "error") parts.add(error)
+        return parts.joinToString(" · ")
+      }
+      "sensors" -> {
+        parts.add("Listening for sensors")
+        parts.add("%.2f MHz".format(SENSOR_BANDS[hopIdx] / 1e6))
+        parts.add("${synchronized(sensorDevices) { sensorDevices.size }} devices")
+        if (status == "error") parts.add(error)
+        return parts.joinToString(" · ")
+      }
+    }
     parts.add("%.3f MHz %s".format(freq / 1e6, mode))
     val name = rds?.ps?.ifEmpty { null } ?: label.ifEmpty { null }
     if (name != null) parts.add(name)
@@ -1054,8 +1369,11 @@ object RadioEngine {
     return parts.joinToString(" · ")
   }
 
-  /** Everything JS shows. The lists (hits, favorites, survey, RDS names, recordings) are only included when [full]. */
-  fun snapshot(full: Boolean = true): Map<String, Any?> {
+  /**
+   * Everything JS shows. The lists (hits, favorites, survey, RDS names, recordings) are only included when [full],
+   * the plane and sensor tables when [planes] / [sensors].
+   */
+  fun snapshot(full: Boolean = true, planes: Boolean = full, sensors: Boolean = full): Map<String, Any?> {
     val sc = scan
     val r = rds
     val b = vfoB
@@ -1082,6 +1400,10 @@ object RadioEngine {
     m["snr"] = Math.round(snr * 10) / 10.0
     m["open"] = squelchOpen
     m["noise"] = Math.round(noiseDb * 10) / 10.0
+    m["appMode"] = appMode
+    m["receiver"] = rxLat?.let { la -> rxLon?.let { lo -> mapOf("lat" to la, "lon" to lo) } }
+    if (planes) m["planes"] = planesInfo
+    if (sensors) m["sensors"] = sensorsInfo()
     m["vfoB"] = b?.let {
       mapOf(
         "freq" to it.freq.toDouble(), "mode" to it.mode, "bw" to it.bw, "squelch" to it.squelch, "label" to it.label,

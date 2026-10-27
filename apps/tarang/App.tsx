@@ -3,25 +3,32 @@ import { useCallback, useState } from 'react';
 import { Alert, Modal, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Radio, type RadioState } from './modules/rtl-radio';
+import { Radio, type AppMode, type RadioState } from './modules/rtl-radio';
 import { bandMode, fmtMHz } from './src/format';
 import { GROUPS } from './src/presets';
 import { Listen } from './src/screens/Listen';
+import { Planes } from './src/screens/Planes';
 import { Presets } from './src/screens/Presets';
 import { Recordings } from './src/screens/Recordings';
+import { Sensors } from './src/screens/Sensors';
 import { Survey } from './src/screens/Survey';
 import { C, mono } from './src/theme';
 import { Btn, s as ui } from './src/ui';
 import { useRadio } from './src/useRadio';
 
-type Tab = 'listen' | 'presets' | 'survey' | 'recordings';
+type Tab = 'listen' | 'presets' | 'survey' | 'planes' | 'sensors' | 'recordings';
 
 const TABS: { id: Tab; icon: string; name: string }[] = [
   { id: 'listen', icon: '📻', name: 'Listen' },
   { id: 'presets', icon: '☰', name: 'Presets' },
   { id: 'survey', icon: '📊', name: 'Survey' },
+  { id: 'planes', icon: '✈', name: 'Planes' },
+  { id: 'sensors', icon: '📡', name: 'Sensors' },
   { id: 'recordings', icon: '●', name: 'Recordings' },
 ];
+
+/** The Planes and Sensors tabs take over the dongle (as on the Mac); every other tab is the radio. */
+const modeFor = (t: Tab): AppMode => (t === 'planes' || t === 'sensors' ? t : 'radio');
 
 export default function App() {
   return (
@@ -35,7 +42,12 @@ export default function App() {
 function RadioScreen() {
   const s = useRadio();
   const insets = useSafeAreaInsets();
-  const [tab, setTab] = useState<Tab>('listen');
+  // reopening the app while the service tracks planes or sensors lands back on that tab
+  const [tab, setTabState] = useState<Tab>(() => (s.appMode === 'planes' || s.appMode === 'sensors' ? s.appMode : 'listen'));
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    Radio.command({ action: 'app_mode', mode: modeFor(t) });
+  }, []);
   const [groupId, setGroupId] = useState(GROUPS[0]?.id ?? 'fav');
   const [entry, setEntry] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -62,9 +74,11 @@ function RadioScreen() {
         </View>
         {tab === 'presets' && <Presets s={s} groupId={groupId} setGroupId={setGroupId} bottom={bottom} />}
         {tab === 'survey' && <Survey s={s} bottom={bottom} />}
+        {tab === 'planes' && <Planes s={s} bottom={bottom} />}
+        {tab === 'sensors' && <Sensors s={s} bottom={bottom} />}
         {tab === 'recordings' && <Recordings s={s} bottom={bottom} />}
       </View>
-      <ScanBar s={s} />
+      {s.appMode === 'radio' && <ScanBar s={s} />}
       <View style={[st.tabs, { paddingBottom: Math.max(insets.bottom, 8) }]}>
         {TABS.map((t) => (
           <Pressable key={t.id} style={st.tab} onPress={() => setTab(t.id)}>

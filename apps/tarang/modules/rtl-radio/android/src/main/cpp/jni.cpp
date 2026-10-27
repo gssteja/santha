@@ -3,8 +3,11 @@
 #include <jni.h>
 
 #include <cstdio>
+#include <string>
 
+#include "adsb.h"
 #include "dsp.h"
+#include "r433.h"
 
 using tarang::Channel;
 using tarang::Dsp;
@@ -74,6 +77,76 @@ JNIEXPORT jobjectArray JNICALL Java_expo_modules_rtlradio_dsp_NativeDsp_nativeRd
     env->DeleteLocalRef(s);
   }
   return out;
+}
+
+// ---------- ADS-B (expo.modules.rtlradio.dsp.NativeDecoders) ----------
+
+static tarang::Adsb* adsb(jlong h) { return reinterpret_cast<tarang::Adsb*>(h); }
+
+JNIEXPORT jlong JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_adsbCreate(JNIEnv*, jclass) {
+  return reinterpret_cast<jlong>(new tarang::Adsb());
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_adsbDestroy(JNIEnv*, jclass, jlong h) { delete adsb(h); }
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_adsbSetReceiver(
+    JNIEnv*, jclass, jlong h, jboolean known, jdouble lat, jdouble lon) {
+  if (known) adsb(h)->setReceiver(lat, lon);
+  else adsb(h)->clearReceiver();
+}
+
+JNIEXPORT jint JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_adsbProcess(JNIEnv* env, jclass, jlong h, jobject iq, jint n, jlong nowMs) {
+  auto* in = static_cast<const uint8_t*>(addr(env, iq));
+  return in ? adsb(h)->process(in, n, nowMs) : -1;
+}
+
+// Writes tarang::AircraftRecord structs into [out]; returns how many.
+JNIEXPORT jint JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_adsbSnapshot(JNIEnv* env, jclass, jlong h, jobject out, jlong nowMs) {
+  auto* recs = static_cast<tarang::AircraftRecord*>(addr(env, out));
+  if (!recs) return 0;
+  const int max = static_cast<int>(env->GetDirectBufferCapacity(out) / sizeof(tarang::AircraftRecord));
+  return adsb(h)->snapshot(recs, max, nowMs);
+}
+
+JNIEXPORT jlong JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_adsbMessages(JNIEnv*, jclass, jlong h) {
+  return static_cast<jlong>(adsb(h)->messages());
+}
+
+// ---------- rtl_433 sensors ----------
+
+static r433_t* r433(jlong h) { return reinterpret_cast<r433_t*>(h); }
+
+JNIEXPORT jlong JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sensorsCreate(JNIEnv*, jclass, jint rate) {
+  return reinterpret_cast<jlong>(r433_create(static_cast<uint32_t>(rate)));
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sensorsDestroy(JNIEnv*, jclass, jlong h) { r433_free(r433(h)); }
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sensorsReset(JNIEnv*, jclass, jlong h, jint centerHz) {
+  r433_reset(r433(h), static_cast<uint32_t>(centerHz));
+}
+
+JNIEXPORT jint JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sensorsProcess(JNIEnv* env, jclass, jlong h, jobject iq, jint n) {
+  auto* in = static_cast<const uint8_t*>(addr(env, iq));
+  return in ? r433_process(r433(h), in, static_cast<unsigned>(n)) : -1;
+}
+
+// Newline-separated JSON messages decoded since the last call, or null when there are none.
+JNIEXPORT jstring JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sensorsTake(JNIEnv* env, jclass, jlong h) {
+  size_t len = 0;
+  const char* out = r433_take(r433(h), &len);
+  if (!len) return nullptr;
+  // NewStringUTF wants modified UTF-8: keep it to printable ASCII (decoders occasionally emit raw bytes)
+  std::string s(out, len);
+  for (char& c : s) {
+    const auto u = static_cast<unsigned char>(c);
+    if (u >= 0x80 || (u < 0x20 && c != '\n')) c = '?';
+  }
+  return env->NewStringUTF(s.c_str());
+}
+
+JNIEXPORT jint JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sensorsDecoders(JNIEnv*, jclass, jlong h) {
+  return static_cast<jint>(r433_decoders(r433(h)));
 }
 
 }  // extern "C"

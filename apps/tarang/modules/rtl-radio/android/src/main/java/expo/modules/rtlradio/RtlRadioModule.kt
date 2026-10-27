@@ -1,13 +1,17 @@
 package expo.modules.rtlradio
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
+import android.location.Location
+import android.location.LocationManager
 import android.os.Build
+import expo.modules.interfaces.permissions.PermissionsStatus
 import expo.modules.kotlin.Promise
 import expo.modules.kotlin.exception.CodedException
 import expo.modules.kotlin.modules.Module
@@ -73,6 +77,37 @@ class RtlRadioModule : Module() {
       RadioService.stop(context)
     }
 
+    /**
+     * Asks for location, then hands the phone's position to the engine (range rings on the plane map, and
+     * decoding single position messages). Resolves { lat, lon, accuracy }, or null if denied or unavailable.
+     * [fresh] (the "centre on me" button) skips fixes more than a minute old.
+     */
+    AsyncFunction("locate") { fresh: Boolean, promise: Promise ->
+      val perms = appContext.permissions
+      if (perms == null) {
+        promise.resolve(null)
+        return@AsyncFunction
+      }
+      perms.askForPermissions(
+        { result ->
+          if (result.values.none { it.status == PermissionsStatus.GRANTED }) {
+            promise.resolve(null)
+          } else {
+            currentLocation(context, if (fresh) 60_000L else 30 * 60_000L) { loc ->
+              if (loc == null) {
+                promise.resolve(null)
+              } else {
+                RadioEngine.command(mapOf("action" to "location", "lat" to loc.latitude, "lon" to loc.longitude))
+                promise.resolve(mapOf("lat" to loc.latitude, "lon" to loc.longitude, "accuracy" to loc.accuracy.toDouble()))
+              }
+            }
+          }
+        },
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.ACCESS_FINE_LOCATION,
+      )
+    }
+
     Function("openRecording") { id: String ->
       Recorder.open(context, id)
     }
@@ -84,6 +119,37 @@ class RtlRadioModule : Module() {
 
     View(SpectrumView::class) {
       Events("onTune")
+    }
+  }
+
+  /** A fix younger than [maxAgeMs] is plenty for a map centre; otherwise asks for a fresh one. */
+  @SuppressLint("MissingPermission")
+  private fun currentLocation(ctx: Context, maxAgeMs: Long, done: (Location?) -> Unit) {
+    val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+    val names = buildList {
+      if (Build.VERSION.SDK_INT >= 31) add(LocationManager.FUSED_PROVIDER)
+      add(LocationManager.GPS_PROVIDER)
+      add(LocationManager.NETWORK_PROVIDER)
+    }
+    val providers = names.filter { runCatching { lm.isProviderEnabled(it) }.getOrDefault(false) }
+    val last = providers.mapNotNull { runCatching { lm.getLastKnownLocation(it) }.getOrNull() }.maxByOrNull { it.time }
+    if (last != null && System.currentTimeMillis() - last.time < maxAgeMs) {
+      done(last)
+      return
+    }
+    val provider = providers.firstOrNull { it != LocationManager.GPS_PROVIDER } ?: providers.firstOrNull()
+    if (provider == null) {
+      done(last)
+      return
+    }
+    if (Build.VERSION.SDK_INT < 30) {
+      done(last)
+      return
+    }
+    try {
+      lm.getCurrentLocation(provider, null, ctx.mainExecutor) { loc -> done(loc ?: last) }
+    } catch (e: Exception) {
+      done(last)
     }
   }
 

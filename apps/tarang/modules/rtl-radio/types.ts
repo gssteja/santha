@@ -14,6 +14,60 @@ export type SweepResult = { t: number; start: number; stop: number; step: number
 
 export type Recording = { id: string; name: string; seconds: number };
 
+export type AppMode = 'radio' | 'planes' | 'sensors';
+
+/** One aircraft (alt ft, gs kt, vr ft/min, dist nm from the phone, seen s ago). */
+export type Aircraft = {
+  hex: string;
+  flight: string;
+  alt: number | null;
+  gnssAlt: number | null;
+  gs: number | null;
+  track: number | null;
+  heading: number | null;
+  vr: number | null;
+  squawk: string | null;
+  emergency: number;
+  category: number;
+  ground: boolean;
+  lat: number | null;
+  lon: number | null;
+  dist: number | null;
+  bearing: number | null;
+  rssi: number;
+  messages: number;
+  seen: number;
+  seenPos: number | null;
+};
+
+export type Planes = { aircraft: Aircraft[]; tracked: number; withPos: number; messages: number; rate: number };
+
+/** One rtl_433 device: a model + id + channel, with its latest readings (times are epoch ms). */
+export type SensorDevice = {
+  key: string;
+  model: string;
+  id: string;
+  channel: string;
+  first: number;
+  last: number;
+  count: number;
+  readings: Record<string, number | string | boolean>;
+  freq: number | null;
+  rssi: number | null;
+  snr: number | null;
+  protocol: number;
+};
+
+export type Sensors = {
+  messages: number;
+  devices: SensorDevice[];
+  band: number;
+  bands: number[];
+  hopSeconds: number;
+  nextHop: number | null;
+  decoders: number;
+};
+
 export type RadioState = {
   running: boolean;
   status: 'off' | 'starting' | 'radio' | 'error';
@@ -41,6 +95,10 @@ export type RadioState = {
   scan: { state: 'search' | 'hold' | 'survey' | 'sweep'; group: string; name: string; progress: string; ignored: number } | null;
   rds: { pi: string; ps: string; rt: string; pty: string; synced: boolean; groups: number } | null;
   stats: { blocks: number; msPerBlock: number; bytesIn: number; dropped: number; streaming: boolean };
+  appMode: AppMode;
+  receiver: { lat: number; lon: number } | null;
+  planes: Planes | null;
+  sensors: Sensors | null;
   listsVersion: number;
   hits: Hit[];
   favorites: Favorite[];
@@ -68,4 +126,7 @@ export type RadioCommand =
   | { action: 'record'; on: boolean }
   | { action: 'sweep'; start: number; stop: number }
   | { action: 'fav_add'; f: number; mode: Mode; bw: number; label?: string }
-  | { action: 'fav_remove'; f: number };
+  | { action: 'fav_remove'; f: number }
+  | { action: 'app_mode'; mode: AppMode }
+  | { action: 'location'; lat: number; lon: number }
+  | { action: 'sensors_clear' };

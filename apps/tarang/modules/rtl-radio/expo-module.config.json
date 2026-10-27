@@ -1,6 +1,12 @@
 {
-  "platforms": ["android"],
+  "platforms": [
+    "android"
+  ],
   "android": {
-    "modules": ["expo.modules.rtlradio.RtlRadioModule", "expo.modules.rtlradio.RtlSweepModule"]
+    "modules": [
+      "expo.modules.rtlradio.RtlRadioModule",
+      "expo.modules.rtlradio.RtlSweepModule",
+      "expo.modules.rtlradio.RtlMapModule"
+    ]
   }
 }
