@@ -31,7 +31,7 @@ target_compile_definitions(r433 PRIVATE _GNU_SOURCE NDEBUG)
 target_compile_options(r433 PRIVATE -O2 -w -ffunction-sections -fdata-sections -fvisibility=hidden)
 set_target_properties(r433 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-add_library(tarangdsp SHARED dsp.cpp rds.cpp adsb.cpp jni.cpp)
+add_library(tarangdsp SHARED dsp.cpp rds.cpp adsb.cpp same.cpp aprs.cpp acars.cpp jni.cpp)
 
 # -ffast-math lets clang reassociate the FIR dot products into NEON vector reductions.
 target_compile_options(tarangdsp PRIVATE -O3 -ffast-math -fno-exceptions -fno-rtti -Wall)

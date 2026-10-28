@@ -37,6 +37,31 @@ class RadioService : Service() {
     fun stop(context: Context) {
       context.stopService(Intent(context, RadioService::class.java))
     }
+
+    private const val ALERTS = "weather_alerts"
+    private var alertId = 100
+
+    /** A heads-up notification for a weather alert decoded from NOAA Weather Radio. */
+    fun alert(context: Context, title: String, text: String) {
+      val nm = context.getSystemService(NotificationManager::class.java)
+      nm.createNotificationChannel(
+        NotificationChannel(ALERTS, "Weather alerts", NotificationManager.IMPORTANCE_HIGH).apply {
+          description = "Warnings and watches decoded from NOAA Weather Radio"
+        },
+      )
+      val launch = context.packageManager.getLaunchIntentForPackage(context.packageName)?.apply { flags = Intent.FLAG_ACTIVITY_SINGLE_TOP }
+      val open = PendingIntent.getActivity(context, 2, launch, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+      val n = Notification.Builder(context, ALERTS)
+        .setSmallIcon(R.drawable.ic_radio_notification)
+        .setContentTitle(title)
+        .setContentText(text)
+        .setStyle(Notification.BigTextStyle().bigText(text))
+        .setContentIntent(open)
+        .setAutoCancel(true)
+        .setCategory(Notification.CATEGORY_ALARM)
+        .build()
+      nm.notify(alertId++, n)
+    }
   }
 
   private var wakeLock: PowerManager.WakeLock? = null

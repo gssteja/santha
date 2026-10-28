@@ -108,6 +108,20 @@ class RtlRadioModule : Module() {
       )
     }
 
+    /** FM de-emphasis (us) and the rtl_433 hop list (Hz) for the region the phone is in. */
+    Function("setRegion") { deemphUs: Double, bands: List<Double> ->
+      RadioEngine.setRegion(deemphUs, bands.map { it.toLong() }.toLongArray())
+    }
+
+    /** The region's APRS and ACARS frequencies (Hz) and whether NOAA Weather Radio exists there. */
+    Function("setRegionDecoders") { aprsHz: List<Double>, acarsHz: List<Double>, noaa: Boolean ->
+      RadioEngine.setRegionDecoders(aprsHz.map { it.toLong() }.toLongArray(), acarsHz.map { it.toLong() }.toLongArray(), noaa)
+    }
+
+    Function("nearbyCounties") {
+      RadioEngine.nearbyCounties()
+    }
+
     Function("openRecording") { id: String ->
       Recorder.open(context, id)
     }

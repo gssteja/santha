@@ -69,6 +69,8 @@ class Channel {
   void resetStation();
   void setStereo(bool on) { stereo_ = on; }
   void setNoiseReduction(bool on);
+  // FM broadcast de-emphasis time constant: 75 us in the Americas and South Korea, 50 us elsewhere
+  void setDeemphasis(double tauUs);
   bool stereoActive() const { return stereoActive_; }
   const RdsDecoder* rds() const { return mode_ == WFM ? &rds_ : nullptr; }
 
@@ -114,6 +116,8 @@ class Dsp {
   // FFT_N samples (linear, centred on the hardware frequency) when psd is set, and demodulates channel A
   // and/or B when their audio buffers are set. Returns framesA | framesB << 16.
   int process(const uint8_t* iq, int n, float* psd, int psdFrames, float* audioA, float* audioB);
+
+  void setDeemphasis(double tauUs) { a.setDeemphasis(tauUs); b.setDeemphasis(tauUs); }
 
   // audioA = clip(audioA * ga + audioB * gb), frames stereo frames
   static void mix(float* audioA, const float* audioB, int frames, float ga, float gb);

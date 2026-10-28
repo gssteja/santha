@@ -14,7 +14,75 @@ export type SweepResult = { t: number; start: number; stop: number; step: number
 
 export type Recording = { id: string; name: string; seconds: number };
 
-export type AppMode = 'radio' | 'planes' | 'sensors';
+export type AppMode = 'radio' | 'planes' | 'sensors' | 'weather' | 'aprs' | 'acars';
+
+/** A decoded NOAA Weather Radio alert (times are epoch ms). */
+export type WeatherAlert = {
+  code: string;
+  event: string;
+  level: 'warning' | 'watch' | 'statement' | 'test';
+  org: string;
+  places: string[];
+  mine: boolean;
+  issued: number;
+  expires: number;
+  station: string;
+  received: number;
+  raw: string;
+  freq: number;
+  bursts: number;
+};
+
+export type AprsStation = {
+  call: string;
+  first: number;
+  last: number;
+  count: number;
+  via: string;
+  raw: string;
+  lat?: number;
+  lon?: number;
+  dist?: number; // statute miles from the phone
+  bearing?: number;
+  symbol?: string; // table + code, e.g. "/>"
+  comment?: string;
+  course?: number;
+  speedMph?: number;
+  altFt?: number;
+  status?: string;
+  weather?: Record<string, number>; // windDir, windMph, gustMph, tempF, rain1hIn, rain24hIn, rainTodayIn, humidity, pressureMb
+};
+
+export type AcarsMessage = {
+  t: number;
+  freq: number;
+  mode: string;
+  reg: string;
+  ack: string;
+  label: string;
+  labelName: string;
+  block: string;
+  down: boolean;
+  msgno: string;
+  flight: string;
+  text: string;
+  level: number;
+};
+
+export type Decode = {
+  listen: boolean;
+  weather: {
+    available: boolean; // NOAA Weather Radio exists only in the US and Canada
+    freq: number;
+    stations: { f: number; snr: number }[];
+    alerts: WeatherAlert[];
+    tone: boolean;
+    alerting: boolean;
+    county: { fips: string; name: string; manual: boolean } | null;
+  };
+  aprs: { freq: number; packets: number; stations: AprsStation[]; log: { t: number; kind: string; from: string; to?: string; text: string }[] };
+  acars: { channels: number[]; count: number; messages: AcarsMessage[] };
+};
 
 /** One aircraft (alt ft, gs kt, vr ft/min, dist nm from the phone, seen s ago). */
 export type Aircraft = {
@@ -99,6 +167,7 @@ export type RadioState = {
   receiver: { lat: number; lon: number } | null;
   planes: Planes | null;
   sensors: Sensors | null;
+  decode: Decode | null;
   listsVersion: number;
   hits: Hit[];
   favorites: Favorite[];
@@ -129,4 +198,7 @@ export type RadioCommand =
   | { action: 'fav_remove'; f: number }
   | { action: 'app_mode'; mode: AppMode }
   | { action: 'location'; lat: number; lon: number }
-  | { action: 'sensors_clear' };
+  | { action: 'sensors_clear' }
+  | { action: 'decode_listen'; on: boolean }
+  | { action: 'decode_clear'; what: 'weather' | 'aprs' | 'acars' }
+  | { action: 'wx_county'; fips: string | null };

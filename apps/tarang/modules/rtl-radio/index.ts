@@ -12,6 +12,9 @@ type RtlRadioNative = {
   start(): Promise<boolean>;
   stop(): void;
   locate(fresh: boolean): Promise<{ lat: number; lon: number; accuracy: number } | null>;
+  nearbyCounties(): { fips: string; name: string }[];
+  setRegion(deemphUs: number, sensorBands: number[]): void;
+  setRegionDecoders(aprsHz: number[], acarsHz: number[], noaa: boolean): void;
   openRecording(id: string): void;
   deleteRecording(id: string): void;
   addListener(event: 'onState', listener: (s: Partial<RadioState>) => void): EventSubscription;
@@ -29,6 +32,12 @@ export const Radio = {
    * [fresh] skips fixes more than a minute old (otherwise anything from the last half hour will do).
    */
   locate: (fresh = false) => native.locate(fresh),
+  /** Regional radio settings: FM de-emphasis (75 or 50 us) and the sensor hop list in Hz. */
+  setRegion: (deemphUs: number, sensorBands: number[]) => native.setRegion(deemphUs, sensorBands),
+  /** The region's APRS frequency (first used), ACARS channels (Hz) and whether NOAA Weather Radio exists there. */
+  setRegionDecoders: (aprsHz: number[], acarsHz: number[], noaa: boolean) => native.setRegionDecoders(aprsHz, acarsHz, noaa),
+  /** Counties around the phone's last location, nearest first (for the weather-alert county picker). */
+  nearbyCounties: () => native.nearbyCounties(),
   openRecording: (id: string) => native.openRecording(id),
   deleteRecording: (id: string) => native.deleteRecording(id),
   /** State updates a few times a second; lists (hits, favorites, survey, rdsNames, planes, sensors) only when they change. */

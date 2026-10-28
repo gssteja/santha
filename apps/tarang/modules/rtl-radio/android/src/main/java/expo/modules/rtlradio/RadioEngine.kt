@@ -6,11 +6,14 @@ import android.hardware.usb.UsbManager
 import android.os.Process
 import android.os.SystemClock
 import android.util.Log
+import expo.modules.rtlradio.dsp.AcarsMessageDecoder
 import expo.modules.rtlradio.dsp.AdsbDecoder
+import expo.modules.rtlradio.dsp.AprsPacketDecoder
 import expo.modules.rtlradio.dsp.Dsp
 import expo.modules.rtlradio.dsp.Plane
 import expo.modules.rtlradio.dsp.RdsInfo
 import expo.modules.rtlradio.dsp.SensorDecoder
+import expo.modules.rtlradio.dsp.WeatherAlertDecoder
 import expo.modules.rtlradio.usb.RtlSdr
 import expo.modules.rtlradio.usb.RtlSdrException
 import org.json.JSONArray
@@ -35,8 +38,9 @@ import kotlin.math.sqrt
 /**
  * The radio: owns the dongle, the DSP and the audio output on one thread, and runs listening (one or two
  * channels), scanning, the FM station survey and the band activity sweep. A port of the Mac radio panel's
- * Radio class (server.py). The same thread can instead track planes (ADS-B at 1090 MHz, the Mac's dump1090)
- * or decode wireless sensors (rtl_433's decoders, hopping 433.92 / 315 / 915 MHz): see [appMode].
+ * Radio class (server.py). The same thread can instead track planes (ADS-B at 1090 MHz, the Mac's dump1090),
+ * decode wireless sensors (rtl_433's decoders, hopping 433.92 / 315 / 915 MHz), watch NOAA Weather Radio for
+ * alerts (SAME), receive APRS (144.39 MHz) or ACARS (four channels around 131 MHz): see [appMode].
  *
  * Commands arrive from JS as maps and are applied on the radio thread between blocks. State goes back to JS
  * a few times a second through [stateListener]; the spectrum goes straight to native views through
@@ -67,12 +71,18 @@ object RadioEngine {
   private const val SENSOR_FS = 1_000_000       // rtl_433's rate when 915 MHz is in the hop list
   private const val SENSOR_BLOCK = 100_000      // 100 ms
   private const val HOP_MS = 40_000L            // like the Mac's rtl_433 -H 40
-  private val SENSOR_BANDS = longArrayOf(433_920_000L, 315_000_000L, 915_000_000L)
   private val SENSOR_SKIP = setOf(
     "time", "model", "id", "channel", "mic", "mod", "freq", "freq1", "freq2", "rssi", "snr", "noise", "protocol", "subtype",
     "raw_msg", "rows", "codes", "len", "data",
   )
   private const val MAX_TRAIL = 400
+  private val NOAA = longArrayOf(162_400_000L, 162_425_000L, 162_450_000L, 162_475_000L, 162_500_000L, 162_525_000L, 162_550_000L)
+  private const val WX_CENTER = 162_225_000L    // all seven NOAA channels sit 175-325 kHz above: clear of the DC spike
+  private const val WX_BW = 16_000
+  private const val ALERT_AUDIO_MS = 4 * 60_000L // play the voice message this long after a local alert (or until NNNN)
+  private const val APRS_FREQ = 144_390_000L    // North America; the region can change it
+  private val ACARS_CHANNELS = longArrayOf(130_025_000L, 130_450_000L, 131_125_000L, 131_550_000L) // the busy US ones
+  private val DECODE_MODES = setOf("weather", "aprs", "acars")
 
   val DEFAULT_BW = mapOf("AM" to 8000, "NFM" to 12500, "WFM" to 200000, "USB" to 2800, "LSB" to 2800, "CW" to 500)
 
@@ -180,7 +190,19 @@ object RadioEngine {
   @Volatile var rxLon: Double? = null
     private set
 
-  /** What the dongle is for: "radio" (listen/scan), "planes" (ADS-B) or "sensors" (rtl_433). Follows the open tab. */
+  /** rtl_433's hop list; the region sets it (US: 433.92 / 315 / 915 MHz). See [setRegion]. */
+  @Volatile var sensorBands: LongArray = longArrayOf(433_920_000L, 315_000_000L, 915_000_000L)
+    private set
+  @Volatile private var deemphUs = 75.0 // FM de-emphasis: 75 us in the Americas, 50 us elsewhere
+  @Volatile private var aprsFreq = APRS_FREQ
+  @Volatile private var acarsChannels = ACARS_CHANNELS
+  @Volatile private var acarsCenter = acarsCentre(ACARS_CHANNELS)
+  @Volatile private var noaaAvailable = true // NOAA Weather Radio is US / Canada only
+
+  /**
+   * What the dongle is for: "radio" (listen/scan), "planes" (ADS-B), "sensors" (rtl_433), "weather" (NOAA SAME
+   * alerts), "aprs" or "acars". Follows the open tab.
+   */
   @Volatile var appMode = "radio"
     private set
 
@@ -245,6 +267,30 @@ object RadioEngine {
   private var sensorsVersion = 0
   private var sentSensorsVersion = -1
 
+  // ---------- weather alerts, APRS, ACARS (lists guarded by decodeLock: JS reads them too) ----------
+  private val decodeLock = Any()
+  private var decodeCfg = "" // what channel A is set up for in a decode mode
+  @Volatile private var decodeListen = false // play the decoded channel's audio
+  private var decodeVersion = 0
+  private var sentDecodeVersion = -1
+  private var lastDecodeTick = 0L
+  private var wxDec: WeatherAlertDecoder? = null
+  private var wxFreq = 162_550_000L
+  private var wxPickAt = 0L
+  private val wxSnr = DoubleArray(NOAA.size)
+  private val wxAlerts = ArrayDeque<Map<String, Any?>>() // newest first
+  private var wxTone = false
+  private var wxAudioUntil = 0L
+  @Volatile private var wxCounty: String? = null // FIPS SSCCC
+  private var wxCountyManual = false
+  private var aprsDec: AprsPacketDecoder? = null
+  private val aprsStations = HashMap<String, HashMap<String, Any?>>()
+  private val aprsLog = ArrayDeque<Map<String, Any?>>() // messages and status reports, newest first
+  private var aprsPackets = 0
+  private var acarsDec: AcarsMessageDecoder? = null
+  private val acarsMsgs = ArrayDeque<Map<String, Any?>>() // newest first
+  private var acarsCount = 0
+
   private val lock = Any()
   private val cmds = ConcurrentLinkedQueue<Map<String, Any?>>()
   private var thread: Thread? = null
@@ -263,6 +309,7 @@ object RadioEngine {
       sentListsVersion = -1
       sentPlanesVersion = -1
       sentSensorsVersion = -1
+      sentDecodeVersion = -1
     }
 
   /** Called with a short "now playing" line whenever it changes (for the notification). */
@@ -308,10 +355,16 @@ object RadioEngine {
       emptyList()
     }
     label = p.getString("label", "") ?: ""
+    wxCounty = p.getString("wx_county", null)
+    wxCountyManual = p.getBoolean("wx_county_manual", false)
     if (p.contains("rx_lat")) {
       rxLat = p.getString("rx_lat", null)?.toDoubleOrNull()
       rxLon = p.getString("rx_lon", null)?.toDoubleOrNull()
     }
+    // a location saved before the weather alerts existed still tells us the county
+    val la = rxLat
+    val lo = rxLon
+    if (wxCounty == null && la != null && lo != null) wxCounty = Counties.nearest(context, la, lo)?.fips
   }
 
   private fun saveSettings() {
@@ -329,6 +382,8 @@ object RadioEngine {
       .putString("label", label)
       .putString("rx_lat", rxLat?.toString())
       .putString("rx_lon", rxLon?.toString())
+      .putString("wx_county", wxCounty)
+      .putBoolean("wx_county_manual", wxCountyManual)
       .apply()
   }
 
@@ -384,6 +439,7 @@ object RadioEngine {
     }
     val ctx = appContext!!
     val dsp = Dsp()
+    dsp.setDeemphasis(deemphUs)
     val audio = AudioOut(ctx)
     audio.start()
     try {
@@ -409,6 +465,9 @@ object RadioEngine {
           when {
             hwMode == "planes" -> planesBlock(dsp)
             hwMode == "sensors" -> sensorsBlock(dsp)
+            hwMode == "weather" -> weatherBlock(dsp, audio)
+            hwMode == "aprs" -> aprsBlock(dsp, audio)
+            hwMode == "acars" -> acarsBlock(dsp)
             sc?.state == "search" || sc?.state == "survey" -> scanStep(dsp, sc)
             sc?.state == "sweep" -> sweepStep(dsp, sc)
             else -> listenBlock(dsp, audio)
@@ -433,6 +492,12 @@ object RadioEngine {
       adsb = null
       sensorDec?.release()
       sensorDec = null
+      wxDec?.release()
+      wxDec = null
+      aprsDec?.release()
+      aprsDec = null
+      acarsDec?.release()
+      acarsDec = null
     }
   }
 
@@ -922,6 +987,7 @@ object RadioEngine {
     hwCenter = null
     demodDirty = true
     demodBDirty = true
+    decodeCfg = ""
     snr = 0.0
     squelchOpen = false
     rds = null
@@ -1008,10 +1074,11 @@ object RadioEngine {
       sensorDecoders = it.decoders
     }
     if (hopAt == 0L || now >= hopAt) {
-      if (hopAt != 0L) hopIdx = (hopIdx + 1) % SENSOR_BANDS.size
+      val bands = sensorBands
+      hopIdx = if (hopAt != 0L) (hopIdx + 1) % bands.size else hopIdx % bands.size
       hopAt = now + HOP_MS
-      tuneHw(dsp, SENSOR_BANDS[hopIdx])
-      s.reset(SENSOR_BANDS[hopIdx])
+      tuneHw(dsp, bands[hopIdx])
+      s.reset(bands[hopIdx])
       sensorsVersion++
     }
     readBlock(dsp, SENSOR_BLOCK)
@@ -1061,17 +1128,284 @@ object RadioEngine {
     sensorsVersion++
   }
 
+  private fun currentBand(): Long = sensorBands.let { it[hopIdx % it.size] }
+
+  /** A tuning that puts every ACARS channel in the clean part of the view and off the DC spike (12.5 kHz grid). */
+  private fun acarsCentre(ch: LongArray): Long {
+    val mid = (ch.min() + ch.max()) / 2 / 12_500 * 12_500
+    for (k in 0..32) {
+      for (c in longArrayOf(mid + k * 12_500L, mid - k * 12_500L)) {
+        if (ch.all { abs(it - c) >= DC_GUARD && abs(it - c) <= 950_000L }) return c
+      }
+    }
+    return mid
+  }
+
+  /**
+   * The region's decoder frequencies: APRS (the first of [aprsHz]), ACARS channels (those within 1.9 MHz of the
+   * first are used), and whether NOAA Weather Radio exists there.
+   */
+  fun setRegionDecoders(aprsHz: LongArray, acarsHz: LongArray, noaa: Boolean) {
+    aprsHz.firstOrNull()?.let { aprsFreq = it }
+    if (acarsHz.isNotEmpty()) {
+      val ch = acarsHz.filter { abs(it - acarsHz[0]) <= 1_900_000L }.take(8).toLongArray()
+      acarsChannels = ch
+      acarsCenter = acarsCentre(ch)
+    }
+    noaaAvailable = noaa
+    decodeVersion++
+    synchronized(lock) {
+      if (thread != null) cmds.add(mapOf("action" to "region_apply"))
+    }
+  }
+
+  /**
+   * The radio's regional settings: FM de-emphasis and the sensor hop list. Kept for the next start when the
+   * radio is off; applied on the radio thread (and the sensor hop restarted) when it's running.
+   */
+  fun setRegion(deemph: Double, bands: LongArray) {
+    if (bands.isEmpty()) return
+    deemphUs = deemph
+    sensorBands = bands
+    synchronized(lock) {
+      if (thread != null) cmds.add(mapOf("action" to "region_apply"))
+    }
+  }
+
   private fun sensorsInfo(): Map<String, Any?> {
     val left = max(hopAt - SystemClock.elapsedRealtime(), 0L)
     val devices = synchronized(sensorDevices) { sensorDevices.values.sortedByDescending { it["last"] as Double }.map { HashMap(it) } }
     return mapOf(
       "messages" to sensorMessages,
       "devices" to devices,
-      "band" to SENSOR_BANDS[hopIdx].toDouble(),
-      "bands" to SENSOR_BANDS.map { it.toDouble() },
+      "band" to currentBand().toDouble(),
+      "bands" to sensorBands.map { it.toDouble() },
       "hopSeconds" to HOP_MS / 1000,
       "nextHop" to if (hwMode == "sensors" && hopAt > 0) System.currentTimeMillis() + left.toDouble() else null,
       "decoders" to sensorDecoders,
+    )
+  }
+
+  // ---------- weather alerts, APRS, ACARS ----------
+
+  /** Channel A demodulates [f] for a decoder; returns the audio frames in dsp.audio, with the PSD in dsp.psd. */
+  private fun decodeAudio(dsp: Dsp, center: Long, f: Long, bw: Int, cfg: String): Int {
+    tuneHw(dsp, center)
+    val hw = hwCenter ?: return 0
+    if (decodeCfg != cfg) {
+      dsp.configure(Dsp.A, "NFM", bw)
+      dsp.setOptions(Dsp.A, false, false) // decoders want the raw audio
+      decodeCfg = cfg
+    }
+    dsp.setOffset(Dsp.A, Dsp.offsetCycles(f - hw))
+    readBlock(dsp, BLOCK)
+    return dsp.demod(BLOCK, LISTEN_PSD_FRAMES, false)
+  }
+
+  /** NOAA Weather Radio: stays on the strongest of the seven channels and decodes SAME alerts. */
+  private fun weatherBlock(dsp: Dsp, audio: AudioOut) {
+    val frames = decodeAudio(dsp, WX_CENTER, wxFreq, WX_BW, "wx:$wxFreq")
+    val hw = hwCenter ?: return
+    val t0 = System.nanoTime()
+    val p = dsp.psd
+    val noise = noiseFloor(p)
+    for (i in NOAA.indices) wxSnr[i] = channelSnr(p, noise, NOAA[i] - hw, 12_500)
+    val now = SystemClock.elapsedRealtime()
+    if (now >= wxPickAt) {
+      wxPickAt = now + 5000
+      val cur = NOAA.indexOf(wxFreq)
+      val best = wxSnr.indices.maxByOrNull { wxSnr[it] } ?: 0
+      if (cur < 0 || wxSnr[best] > wxSnr[cur] + 3) wxFreq = NOAA[best] // only for a clearly stronger station
+    }
+    snr = wxSnr[max(NOAA.indexOf(wxFreq), 0)]
+    val d = wxDec ?: WeatherAlertDecoder().also { wxDec = it }
+    d.process(dsp.audio, frames, now)
+    for (e in d.take()) onWeatherEvent(e, now)
+    audio.write(dsp.audio, frames, decodeListen || now < wxAudioUntil)
+    blocks++
+    workNs += System.nanoTime() - t0
+    if (now - lastDecodeTick > 1000) { // station strengths for the UI
+      lastDecodeTick = now
+      decodeVersion++
+    }
+  }
+
+  private fun fmtTime(ms: Double): String = java.text.DateFormat.getTimeInstance(java.text.DateFormat.SHORT).format(Date(ms.toLong()))
+
+  private fun onWeatherEvent(json: String, now: Long) {
+    val o = try {
+      JSONObject(json)
+    } catch (e: Exception) {
+      return
+    }
+    when (o.optString("kind")) {
+      "header" -> {
+        val ctx = appContext ?: return
+        val a = Same.parse(ctx, o.getString("text"), System.currentTimeMillis(), wxCounty) ?: return
+        val alert = HashMap(a)
+        alert["freq"] = wxFreq.toDouble()
+        alert["bursts"] = o.optInt("bursts")
+        synchronized(decodeLock) {
+          wxAlerts.addFirst(alert)
+          while (wxAlerts.size > 40) wxAlerts.removeLast()
+        }
+        decodeVersion++
+        Log.i(TAG, "SAME: ${a["raw"]}")
+        // with no county known, every alert on this transmitter counts (they cover a handful of counties)
+        if ((a["mine"] == true || wxCounty == null) && a["level"] != "test") {
+          wxAudioUntil = now + ALERT_AUDIO_MS
+          @Suppress("UNCHECKED_CAST")
+          val places = (a["places"] as List<String>).joinToString(", ")
+          RadioService.alert(ctx, a["event"] as String, "$places · until ${fmtTime(a["expires"] as Double)}")
+        }
+      }
+      "eom" -> {
+        wxAudioUntil = min(wxAudioUntil, now + 3000)
+        decodeVersion++
+      }
+      "tone" -> {
+        wxTone = o.optBoolean("on")
+        decodeVersion++
+      }
+    }
+  }
+
+  private fun aprsBlock(dsp: Dsp, audio: AudioOut) {
+    val f = aprsFreq
+    val frames = decodeAudio(dsp, f - OFFSET, f, 12_500, "aprs:$f")
+    val hw = hwCenter ?: return
+    val t0 = System.nanoTime()
+    snr = channelSnr(dsp.psd, noiseFloor(dsp.psd), f - hw, 12_500)
+    val now = SystemClock.elapsedRealtime()
+    val d = aprsDec ?: AprsPacketDecoder().also { aprsDec = it }
+    d.process(dsp.audio, frames, now)
+    for (pk in d.take()) onAprsPacket(pk)
+    audio.write(dsp.audio, frames, decodeListen)
+    blocks++
+    workNs += System.nanoTime() - t0
+  }
+
+  private fun onAprsPacket(json: String) {
+    val o = try {
+      JSONObject(json)
+    } catch (e: Exception) {
+      return
+    }
+    val src = o.optString("src")
+    val info = o.optString("info")
+    val pathArr = o.optJSONArray("path")
+    val path = (0 until (pathArr?.length() ?: 0)).map { pathArr!!.getString(it) }
+    val via = path.lastOrNull { it.endsWith("*") }?.removeSuffix("*") ?: "direct"
+    val r = Aprs.parse(src, o.optString("dst"), info)
+    val now = System.currentTimeMillis().toDouble()
+    synchronized(decodeLock) {
+      aprsPackets++
+      val msg = r?.message
+      if (msg != null) {
+        aprsLog.addFirst(mapOf("t" to now, "kind" to "message", "from" to src, "to" to msg.first, "text" to msg.second))
+      } else {
+        val name = r?.name ?: src
+        val st = aprsStations.getOrPut(name) { hashMapOf("call" to name, "count" to 0, "first" to now) }
+        st["count"] = (st["count"] as Int) + 1
+        st["last"] = now
+        st["via"] = via
+        st["raw"] = info.take(200)
+        if (r != null) {
+          val la = r.lat
+          val lo = r.lon
+          if (la != null && lo != null && la in -90.0..90.0 && lo in -180.0..180.0) {
+            st["lat"] = la
+            st["lon"] = lo
+            val rla = rxLat
+            val rlo = rxLon
+            if (rla != null && rlo != null) {
+              st["dist"] = Math.round(distanceNm(rla, rlo, la, lo) * 1.15078 * 10) / 10.0 // statute miles
+              st["bearing"] = Math.round(bearing(rla, rlo, la, lo)).toDouble()
+            }
+          }
+          if (r.lat != null || r.weather != null) st["symbol"] = r.symbol
+          if (r.comment.isNotEmpty()) st["comment"] = r.comment
+          r.course?.let { st["course"] = it }
+          r.speedKt?.let { st["speedMph"] = Math.round(it * 1.15078).toDouble() }
+          r.altFt?.let { st["altFt"] = Math.round(it).toDouble() }
+          r.weather?.let { if (it.isNotEmpty()) st["weather"] = HashMap(it) }
+          r.status?.let {
+            st["status"] = it
+            aprsLog.addFirst(mapOf("t" to now, "kind" to "status", "from" to src, "text" to it))
+          }
+        }
+      }
+      while (aprsLog.size > 60) aprsLog.removeLast()
+      if (aprsStations.size > 300) aprsStations.values.minByOrNull { it["last"] as Double }?.let { aprsStations.remove(it["call"]) }
+    }
+    decodeVersion++
+  }
+
+  private fun acarsBlock(dsp: Dsp) {
+    val centre = acarsCenter
+    tuneHw(dsp, centre)
+    readBlock(dsp, BLOCK)
+    val t0 = System.nanoTime()
+    val d = acarsDec ?: AcarsMessageDecoder(centre, acarsChannels).also { acarsDec = it }
+    d.process(dsp.iq, BLOCK)
+    val msgs = d.take()
+    if (msgs.isNotEmpty()) {
+      val now = System.currentTimeMillis().toDouble()
+      synchronized(decodeLock) {
+        for (m in msgs) {
+          val o = try {
+            JSONObject(m)
+          } catch (e: Exception) {
+            continue
+          }
+          val row = HashMap<String, Any?>()
+          for (k in o.keys()) row[k] = o.get(k).let { if (it is Number) it.toDouble() else it }
+          row["t"] = now
+          row["labelName"] = AcarsLabels.NAMES[o.optString("label")] ?: ""
+          acarsMsgs.addFirst(row)
+          acarsCount++
+        }
+        while (acarsMsgs.size > 300) acarsMsgs.removeLast()
+      }
+      decodeVersion++
+    }
+    blocks++
+    workNs += System.nanoTime() - t0
+  }
+
+  /** Counties around the phone, nearest first, for picking the weather-alert county by hand. */
+  fun nearbyCounties(): List<Map<String, Any?>> {
+    val ctx = appContext ?: return emptyList()
+    val la = rxLat ?: return emptyList()
+    val lo = rxLon ?: return emptyList()
+    return Counties.nearby(ctx, la, lo, 8).map { mapOf("fips" to it.fips, "name" to "${it.name}, ${it.state}") }
+  }
+
+  private fun decodeInfo(): Map<String, Any?> = synchronized(decodeLock) {
+    val ctx = appContext
+    val county = wxCounty?.let { f -> ctx?.let { Counties.get(it, f) } }
+    mapOf(
+      "listen" to decodeListen,
+      "weather" to mapOf(
+        "available" to noaaAvailable,
+        "freq" to wxFreq.toDouble(),
+        "stations" to NOAA.indices.map { mapOf("f" to NOAA[it].toDouble(), "snr" to Math.round(wxSnr[it] * 10) / 10.0) },
+        "alerts" to wxAlerts.toList(),
+        "tone" to wxTone,
+        "alerting" to (SystemClock.elapsedRealtime() < wxAudioUntil),
+        "county" to county?.let { mapOf("fips" to it.fips, "name" to "${it.name}, ${it.state}", "manual" to wxCountyManual) },
+      ),
+      "aprs" to mapOf(
+        "freq" to aprsFreq.toDouble(),
+        "packets" to aprsPackets,
+        "stations" to aprsStations.values.sortedByDescending { it["last"] as Double }.take(200).map { HashMap(it) },
+        "log" to aprsLog.toList(),
+      ),
+      "acars" to mapOf(
+        "channels" to acarsChannels.map { it.toDouble() },
+        "count" to acarsCount,
+        "messages" to acarsMsgs.take(200),
+      ),
     )
   }
 
@@ -1298,13 +1632,60 @@ object RadioEngine {
       }
       "app_mode" -> {
         val m = cmd["mode"] as? String
-        appMode = if (m == "planes" || m == "sensors") m else "radio"
+        appMode = if (m == "planes" || m == "sensors" || m in DECODE_MODES) m!! else "radio"
         return false
+      }
+      "region_apply" -> {
+        dsp?.setDeemphasis(deemphUs)
+        acarsDec?.release() // rebuilt for the new channels on the next ACARS block
+        acarsDec = null
+        if (hwMode == "sensors") {
+          hopIdx = 0
+          hopAt = 0 // retune to the first band on the next block
+        }
+        return false
+      }
+      "decode_listen" -> {
+        decodeListen = cmd["on"] == true
+        decodeVersion++
+        return false
+      }
+      "decode_clear" -> {
+        synchronized(decodeLock) {
+          when (cmd["what"]) {
+            "weather" -> wxAlerts.clear()
+            "aprs" -> {
+              aprsStations.clear()
+              aprsLog.clear()
+              aprsPackets = 0
+            }
+            "acars" -> {
+              acarsMsgs.clear()
+              acarsCount = 0
+            }
+          }
+        }
+        decodeVersion++
+        return false
+      }
+      "wx_county" -> {
+        val f = cmd["fips"] as? String
+        wxCountyManual = f != null
+        wxCounty = f ?: rxLat?.let { la -> rxLon?.let { lo -> appContext?.let { Counties.nearest(it, la, lo)?.fips } } }
+        decodeVersion++
       }
       "location" -> {
         rxLat = num(cmd["lat"])
         rxLon = num(cmd["lon"])
         rxDirty = true
+        // the weather alerts follow the phone's county unless one was picked by hand
+        val la = rxLat
+        val lo = rxLon
+        val ctx = appContext
+        if (!wxCountyManual && la != null && lo != null && ctx != null) {
+          Counties.nearest(ctx, la, lo)?.let { wxCounty = it.fips }
+          decodeVersion++
+        }
       }
       "sensors_clear" -> {
         synchronized(sensorDevices) {
@@ -1333,7 +1714,9 @@ object RadioEngine {
       sentPlanesVersion = planesVersion
       val sensors = sentSensorsVersion != sensorsVersion
       sentSensorsVersion = sensorsVersion
-      l(snapshot(full, planes, sensors))
+      val decode = sentDecodeVersion != decodeVersion
+      sentDecodeVersion = decodeVersion
+      l(snapshot(full, planes, sensors, decode))
     }
     val np = nowPlaying()
     if (np != lastNowPlaying) {
@@ -1352,9 +1735,28 @@ object RadioEngine {
         if (status == "error") parts.add(error)
         return parts.joinToString(" · ")
       }
+      "weather" -> {
+        parts.add("Watching for weather alerts")
+        parts.add("%.3f MHz".format(wxFreq / 1e6))
+        if (SystemClock.elapsedRealtime() < wxAudioUntil) synchronized(decodeLock) { wxAlerts.firstOrNull() }?.let { parts.add("ALERT: ${it["event"]}") }
+        if (status == "error") parts.add(error)
+        return parts.joinToString(" · ")
+      }
+      "aprs" -> {
+        parts.add("APRS %.3f MHz".format(aprsFreq / 1e6))
+        parts.add("${synchronized(decodeLock) { aprsStations.size }} stations")
+        if (status == "error") parts.add(error)
+        return parts.joinToString(" · ")
+      }
+      "acars" -> {
+        parts.add("ACARS")
+        parts.add("$acarsCount messages")
+        if (status == "error") parts.add(error)
+        return parts.joinToString(" · ")
+      }
       "sensors" -> {
         parts.add("Listening for sensors")
-        parts.add("%.2f MHz".format(SENSOR_BANDS[hopIdx] / 1e6))
+        parts.add("%.2f MHz".format(currentBand() / 1e6))
         parts.add("${synchronized(sensorDevices) { sensorDevices.size }} devices")
         if (status == "error") parts.add(error)
         return parts.joinToString(" · ")
@@ -1371,9 +1773,9 @@ object RadioEngine {
 
   /**
    * Everything JS shows. The lists (hits, favorites, survey, RDS names, recordings) are only included when [full],
-   * the plane and sensor tables when [planes] / [sensors].
+   * the plane, sensor and decoder tables when [planes] / [sensors] / [decode].
    */
-  fun snapshot(full: Boolean = true, planes: Boolean = full, sensors: Boolean = full): Map<String, Any?> {
+  fun snapshot(full: Boolean = true, planes: Boolean = full, sensors: Boolean = full, decode: Boolean = full): Map<String, Any?> {
     val sc = scan
     val r = rds
     val b = vfoB
@@ -1404,6 +1806,7 @@ object RadioEngine {
     m["receiver"] = rxLat?.let { la -> rxLon?.let { lo -> mapOf("lat" to la, "lon" to lo) } }
     if (planes) m["planes"] = planesInfo
     if (sensors) m["sensors"] = sensorsInfo()
+    if (decode) m["decode"] = decodeInfo()
     m["vfoB"] = b?.let {
       mapOf(
         "freq" to it.freq.toDouble(), "mode" to it.mode, "bw" to it.bw, "squelch" to it.squelch, "label" to it.label,

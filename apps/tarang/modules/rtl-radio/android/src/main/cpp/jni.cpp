@@ -5,9 +5,12 @@
 #include <cstdio>
 #include <string>
 
+#include "acars.h"
 #include "adsb.h"
+#include "aprs.h"
 #include "dsp.h"
 #include "r433.h"
+#include "same.h"
 
 using tarang::Channel;
 using tarang::Dsp;
@@ -42,6 +45,10 @@ JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDsp_nativeResetStati
 JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDsp_nativeSetOptions(JNIEnv*, jclass, jlong h, jint ch, jboolean stereo, jboolean nr) {
   chan(h, ch).setStereo(stereo);
   chan(h, ch).setNoiseReduction(nr);
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDsp_nativeSetDeemphasis(JNIEnv*, jclass, jlong h, jdouble tauUs) {
+  dsp(h)->setDeemphasis(tauUs);
 }
 
 JNIEXPORT jboolean JNICALL Java_expo_modules_rtlradio_dsp_NativeDsp_nativeStereoActive(JNIEnv*, jclass, jlong h, jint ch) {
@@ -110,6 +117,70 @@ JNIEXPORT jint JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_adsbSnapsho
 
 JNIEXPORT jlong JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_adsbMessages(JNIEnv*, jclass, jlong h) {
   return static_cast<jlong>(adsb(h)->messages());
+}
+
+// ---------- audio decoders: NOAA SAME weather alerts, APRS ----------
+
+static jstring takeString(JNIEnv* env, const std::string& s) { return s.empty() ? nullptr : env->NewStringUTF(s.c_str()); }
+
+JNIEXPORT jlong JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sameCreate(JNIEnv*, jclass) {
+  return reinterpret_cast<jlong>(new tarang::SameDecoder());
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sameDestroy(JNIEnv*, jclass, jlong h) {
+  delete reinterpret_cast<tarang::SameDecoder*>(h);
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sameProcess(
+    JNIEnv* env, jclass, jlong h, jobject audio, jint frames, jlong nowMs) {
+  auto* a = static_cast<const float*>(addr(env, audio));
+  if (a) reinterpret_cast<tarang::SameDecoder*>(h)->process(a, frames, nowMs);
+}
+
+// SAME output is built from printable ASCII only, so it's safe for NewStringUTF.
+JNIEXPORT jstring JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_sameTake(JNIEnv* env, jclass, jlong h) {
+  return takeString(env, reinterpret_cast<tarang::SameDecoder*>(h)->take());
+}
+
+JNIEXPORT jlong JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_aprsCreate(JNIEnv*, jclass) {
+  return reinterpret_cast<jlong>(new tarang::AprsDecoder());
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_aprsDestroy(JNIEnv*, jclass, jlong h) {
+  delete reinterpret_cast<tarang::AprsDecoder*>(h);
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_aprsProcess(
+    JNIEnv* env, jclass, jlong h, jobject audio, jint frames, jlong nowMs) {
+  auto* a = static_cast<const float*>(addr(env, audio));
+  if (a) reinterpret_cast<tarang::AprsDecoder*>(h)->process(a, frames, nowMs);
+}
+
+// Packets are JSON with every non-printable byte escaped, so the string is plain ASCII.
+JNIEXPORT jstring JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_aprsTake(JNIEnv* env, jclass, jlong h) {
+  return takeString(env, reinterpret_cast<tarang::AprsDecoder*>(h)->take());
+}
+
+// ---------- ACARS ----------
+
+JNIEXPORT jlong JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_acarsCreate(JNIEnv* env, jclass, jlong centerHz, jlongArray channels) {
+  const jsize n = env->GetArrayLength(channels);
+  std::vector<int64_t> ch(n);
+  env->GetLongArrayRegion(channels, 0, n, reinterpret_cast<jlong*>(ch.data()));
+  return reinterpret_cast<jlong>(new tarang::AcarsDecoder(centerHz, ch));
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_acarsDestroy(JNIEnv*, jclass, jlong h) {
+  delete reinterpret_cast<tarang::AcarsDecoder*>(h);
+}
+
+JNIEXPORT void JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_acarsProcess(JNIEnv* env, jclass, jlong h, jobject iq, jint n) {
+  auto* in = static_cast<const uint8_t*>(addr(env, iq));
+  if (in) reinterpret_cast<tarang::AcarsDecoder*>(h)->process(in, n);
+}
+
+JNIEXPORT jstring JNICALL Java_expo_modules_rtlradio_dsp_NativeDecoders_acarsTake(JNIEnv* env, jclass, jlong h) {
+  return takeString(env, reinterpret_cast<tarang::AcarsDecoder*>(h)->take());
 }
 
 // ---------- rtl_433 sensors ----------

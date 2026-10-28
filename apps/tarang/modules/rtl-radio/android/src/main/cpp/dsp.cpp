@@ -137,9 +137,13 @@ Channel::Channel() {
   outQ_.resize(MAX_BLOCK / 50 + 2);
   tmp_.resize(MAX_BLOCK / 50 + 2);
   tmp2_.resize(MAX_BLOCK / 50 + 2);
-  deemA_ = (float)std::exp(-1.0 / (AUDIO_FS * 75e-6));  // US 75 us de-emphasis
+  setDeemphasis(75);
   setOffset((int)(200000LL * MAX_BLOCK / FS));
   configure(WFM, 200000);
+}
+
+void Channel::setDeemphasis(double tauUs) {
+  deemA_ = (float)std::exp(-1.0 / (AUDIO_FS * tauUs * 1e-6));
 }
 
 void Channel::configure(int mode, int bw) {

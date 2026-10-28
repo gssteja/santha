@@ -19,6 +19,7 @@ internal object NativeDsp {
   @JvmStatic external fun nativeProcess(h: Long, iq: ByteBuffer, n: Int, psd: ByteBuffer?, psdFrames: Int, audioA: ByteBuffer?, audioB: ByteBuffer?): Int
   @JvmStatic external fun nativeMix(audioA: ByteBuffer, audioB: ByteBuffer, frames: Int, ga: Float, gb: Float)
   @JvmStatic external fun nativeRdsInfo(h: Long, ch: Int): Array<String>?
+  @JvmStatic external fun nativeSetDeemphasis(h: Long, tauUs: Double)
 }
 
 class RdsInfo(val pi: String, val pty: String, val ps: String, val rt: String, val synced: Boolean, val groups: Int)
@@ -69,6 +70,9 @@ class Dsp {
   fun setOptions(ch: Int, stereo: Boolean, nr: Boolean) = NativeDsp.nativeSetOptions(handle, ch, stereo, nr)
 
   fun stereoActive(ch: Int): Boolean = NativeDsp.nativeStereoActive(handle, ch)
+
+  /** WFM de-emphasis time constant for both channels: 75 us (Americas) or 50 us (most of the world). */
+  fun setDeemphasis(tauUs: Double) = NativeDsp.nativeSetDeemphasis(handle, tauUs)
 
   /** Spectrum only, from the first [psdFrames] FFT frames of the [n] samples in [iq]. */
   fun spectrum(n: Int, psdFrames: Int) {

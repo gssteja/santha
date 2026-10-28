@@ -3,7 +3,10 @@ package expo.modules.rtlradio.dsp
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
-/** JNI entry points for the ADS-B decoder (adsb.cpp) and rtl_433's sensor decoders (r433.c). */
+/**
+ * JNI entry points for the ADS-B decoder (adsb.cpp), rtl_433's sensor decoders (r433.c), the NOAA weather-alert
+ * and APRS decoders (same.cpp, aprs.cpp: they take Dsp's 48 kHz audio) and ACARS (acars.cpp: raw IQ).
+ */
 internal object NativeDecoders {
   init {
     System.loadLibrary("tarangdsp")
@@ -22,6 +25,75 @@ internal object NativeDecoders {
   @JvmStatic external fun sensorsProcess(h: Long, iq: ByteBuffer, n: Int): Int
   @JvmStatic external fun sensorsTake(h: Long): String?
   @JvmStatic external fun sensorsDecoders(h: Long): Int
+
+  @JvmStatic external fun sameCreate(): Long
+  @JvmStatic external fun sameDestroy(h: Long)
+  @JvmStatic external fun sameProcess(h: Long, audio: ByteBuffer, frames: Int, nowMs: Long)
+  @JvmStatic external fun sameTake(h: Long): String?
+
+  @JvmStatic external fun aprsCreate(): Long
+  @JvmStatic external fun aprsDestroy(h: Long)
+  @JvmStatic external fun aprsProcess(h: Long, audio: ByteBuffer, frames: Int, nowMs: Long)
+  @JvmStatic external fun aprsTake(h: Long): String?
+
+  @JvmStatic external fun acarsCreate(centerHz: Long, channels: LongArray): Long
+  @JvmStatic external fun acarsDestroy(h: Long)
+  @JvmStatic external fun acarsProcess(h: Long, iq: ByteBuffer, n: Int)
+  @JvmStatic external fun acarsTake(h: Long): String?
+}
+
+private fun lines(s: String?): List<String> = s?.split('\n')?.filter { it.isNotBlank() } ?: emptyList()
+
+/** NOAA Weather Radio SAME headers, end-of-message bursts and the 1050 Hz tone, from NFM audio. One thread. */
+class WeatherAlertDecoder {
+  private var handle = NativeDecoders.sameCreate()
+
+  /** [audio] holds [frames] interleaved stereo float frames at 48 kHz (as Dsp.audio does). */
+  fun process(audio: ByteBuffer, frames: Int, nowMs: Long) = NativeDecoders.sameProcess(handle, audio, frames, nowMs)
+
+  /** JSON events since the last call: {"kind":"header","text":...}, {"kind":"eom"}, {"kind":"tone","on":...}. */
+  fun take(): List<String> = lines(NativeDecoders.sameTake(handle))
+
+  fun release() {
+    if (handle != 0L) {
+      NativeDecoders.sameDestroy(handle)
+      handle = 0
+    }
+  }
+}
+
+/** APRS (AX.25 over 1200 baud AFSK) from NFM audio. One thread. */
+class AprsPacketDecoder {
+  private var handle = NativeDecoders.aprsCreate()
+
+  fun process(audio: ByteBuffer, frames: Int, nowMs: Long) = NativeDecoders.aprsProcess(handle, audio, frames, nowMs)
+
+  /** JSON packets since the last call: {"src","dst","path":[...],"info"}. */
+  fun take(): List<String> = lines(NativeDecoders.aprsTake(handle))
+
+  fun release() {
+    if (handle != 0L) {
+      NativeDecoders.aprsDestroy(handle)
+      handle = 0
+    }
+  }
+}
+
+/** ACARS on several channels at once from 2.4 MS/s IQ tuned to [centerHz]. One thread. */
+class AcarsMessageDecoder(centerHz: Long, channelsHz: LongArray) {
+  private var handle = NativeDecoders.acarsCreate(centerHz, channelsHz)
+
+  fun process(iq: ByteBuffer, n: Int) = NativeDecoders.acarsProcess(handle, iq, n)
+
+  /** JSON messages since the last call. */
+  fun take(): List<String> = lines(NativeDecoders.acarsTake(handle))
+
+  fun release() {
+    if (handle != 0L) {
+      NativeDecoders.acarsDestroy(handle)
+      handle = 0
+    }
+  }
 }
 
 /** One aircraft as the decoder last heard it. Optional values are null until a message carries them. */
