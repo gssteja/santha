@@ -1,0 +1,101 @@
+{
+ "_doc": "Offline map areas, coarse to fine. tools/make_offline_map.py and the phone's map downloader both cut these out of a Protomaps planet build; the bundled world-lite.pmtiles (z0-4) stands in for World until it is downloaded.",
+ "areas": [
+  {
+   "file": "world.pmtiles",
+   "name": "World",
+   "bounds": [
+    -180,
+    -85,
+    180,
+    85
+   ],
+   "minzoom": 0,
+   "maxzoom": 6
+  },
+  {
+   "file": "us-east-coast.pmtiles",
+   "name": "US east coast",
+   "bounds": [
+    -85,
+    30,
+    -70,
+    45
+   ],
+   "minzoom": 7,
+   "maxzoom": 8
+  },
+  {
+   "file": "charlotte.pmtiles",
+   "name": "Charlotte",
+   "bounds": [
+    -81.15,
+    35.0,
+    -80.55,
+    35.5
+   ],
+   "minzoom": 9,
+   "maxzoom": 14
+  },
+  {
+   "file": "qatar.pmtiles",
+   "name": "Qatar",
+   "bounds": [
+    50.7,
+    24.4,
+    51.7,
+    26.2
+   ],
+   "minzoom": 7,
+   "maxzoom": 11
+  },
+  {
+   "file": "doha-airport.pmtiles",
+   "name": "Doha airport",
+   "bounds": [
+    51.45,
+    25.18,
+    51.72,
+    25.36
+   ],
+   "minzoom": 12,
+   "maxzoom": 15
+  },
+  {
+   "file": "india.pmtiles",
+   "name": "India",
+   "bounds": [
+    68,
+    6.5,
+    97.5,
+    35.7
+   ],
+   "minzoom": 7,
+   "maxzoom": 10
+  },
+  {
+   "file": "telangana.pmtiles",
+   "name": "Telangana",
+   "bounds": [
+    77.2,
+    15.8,
+    81.4,
+    19.95
+   ],
+   "minzoom": 11,
+   "maxzoom": 12
+  },
+  {
+   "file": "hyderabad.pmtiles",
+   "name": "Hyderabad",
+   "bounds": [
+    78.15,
+    17.15,
+    78.8,
+    17.65
+   ],
+   "minzoom": 13,
+   "maxzoom": 15
+  }
+ ]
+}

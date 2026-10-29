@@ -33,3 +33,12 @@ android {
     abortOnError false
   }
 }
+
+dependencies {
+  // the plane map: GPU vector maps reading PMTiles from files. 13.0.x is the last release built with Kotlin 2.0
+  // (React Native 0.79's compiler); 13.1+ needs Kotlin 2.2. The OpenGL ES build: the default one needs Vulkan, which
+  // some phones and the emulator lack (it crashes when the map opens).
+  implementation 'org.maplibre.gl:android-sdk-opengl:13.0.2'
+  // the User-Agent OSM's tile policy asks for (the same OkHttp MapLibre already pulls in)
+  implementation 'com.squareup.okhttp3:okhttp:4.12.0'
+}

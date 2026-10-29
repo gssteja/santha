@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Alert, FlatList, Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getMapStyle, Radio, RadarView, type Aircraft, type MapFocus, type MapStyle, type RadioState } from '../../modules/rtl-radio';
+import { MAP_DOWNLOAD_MB, OfflineMaps, type MapProgress, type MapStatus } from '../offlineMap';
+import { noteLocation } from '../region';
 import { C, mono } from '../theme';
 import { Badge, Btn, Chip, s as ui } from '../ui';
 
@@ -40,6 +42,44 @@ export function Planes({ s, bottom }: { s: RadioState; bottom: number }) {
   const [sort, setSort] = useState<Sort>('dist');
   const [basemap, setBasemap] = useState<MapStyle>(getMapStyle);
   const asked = useRef(false);
+  const [maps, setMaps] = useState<MapStatus | null>(OfflineMaps.status);
+  const [progress, setProgress] = useState<MapProgress | null>(null);
+
+  useEffect(() => {
+    const sub = OfflineMaps.onProgress(setProgress);
+    return () => sub.remove();
+  }, []);
+
+  const download = () => {
+    setMaps((m) => (m ? { ...m, running: true } : m));
+    OfflineMaps.download()
+      .then(setMaps)
+      .catch((e: Error) => {
+        setMaps(OfflineMaps.status());
+        if (!/cancel/i.test(e.message)) Alert.alert('Offline map', `${e.message}\n\nFinished areas are kept; tap again to resume.`);
+      })
+      .finally(() => setProgress(null));
+  };
+
+  const mapPrompt = () => {
+    if (maps?.running) {
+      Alert.alert('Offline map', 'Stop the download? Finished areas are kept.', [
+        { text: 'Keep going', style: 'cancel' },
+        { text: 'Stop', style: 'destructive', onPress: () => OfflineMaps.cancel() },
+      ]);
+      return;
+    }
+    const left = maps?.areas.filter((a) => !a.done).map((a) => a.name).join(', ');
+    Alert.alert(
+      'Download the offline map?',
+      `Street-level maps of Hyderabad and Doha airport, all of India, the world, and Charlotte, drawn without internet. ` +
+        `About ${MAP_DOWNLOAD_MB} MB in total, so use Wi-Fi.${maps?.any ? `\n\nStill to fetch: ${left}.` : ''}`,
+      [
+        { text: 'Not now', style: 'cancel' },
+        { text: 'Download', onPress: download },
+      ],
+    );
+  };
   const p = s.planes;
   const tracking = s.running && s.appMode === 'planes' && s.status === 'radio';
   const list = useMemo(() => sortAircraft(p?.aircraft ?? [], sort), [p, sort]);
@@ -50,13 +90,19 @@ export function Planes({ s, bottom }: { s: RadioState; bottom: number }) {
     if (s.receiver || asked.current) return;
     asked.current = true;
     Radio.locate()
-      .then((loc) => loc && setFocus({ lat: loc.lat, lon: loc.lon, zoom: 8, token: Date.now() }))
+      .then((loc) => {
+        if (!loc) return;
+        noteLocation(loc.lat, loc.lon);
+        setFocus({ lat: loc.lat, lon: loc.lon, zoom: 8, token: Date.now() });
+      })
       .catch(() => {});
   }, [s.receiver]);
 
   const centreMe = async () => {
     const loc = (await Radio.locate(true).catch(() => null)) ?? s.receiver;
-    if (loc) setFocus({ lat: loc.lat, lon: loc.lon, token: Date.now() });
+    if (!loc) return;
+    noteLocation(loc.lat, loc.lon);
+    setFocus({ lat: loc.lat, lon: loc.lon, token: Date.now() });
   };
 
   const show = (a: Aircraft) => {
@@ -102,6 +148,19 @@ export function Planes({ s, bottom }: { s: RadioState; bottom: number }) {
         <Pressable style={st.meBtn} onPress={centreMe} hitSlop={6}>
           <Text style={st.meIcon}>◎</Text>
         </Pressable>
+        {maps && !maps.installed && (
+          <Pressable style={st.mapBtn} onPress={mapPrompt} hitSlop={4}>
+            <Text style={st.mapBtnText}>
+              {maps.running
+                ? progress && progress.total > 0
+                  ? `⬇ ${Math.round((100 * progress.done) / progress.total)}% · ${progress.phase}`
+                  : `⬇ ${progress?.phase ?? 'Starting…'}`
+                : maps.any
+                  ? '⬇ Finish offline map'
+                  : '⬇ Offline map'}
+            </Text>
+          </Pressable>
+        )}
         <View style={st.styleSeg}>
           {(['streets', 'outline'] as const).map((m) => (
             <Pressable key={m} onPress={() => setBasemap(m)} style={[st.styleBtn, basemap === m && st.styleOn]} hitSlop={4}>
@@ -255,6 +314,19 @@ const st = StyleSheet.create({
     overflow: 'hidden',
   },
   styleBtn: { paddingHorizontal: 10, paddingVertical: 5 },
+  mapBtn: {
+    position: 'absolute',
+    right: 10,
+    bottom: 10,
+    maxWidth: '58%',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: C.accent,
+    backgroundColor: 'rgba(18,24,33,0.92)',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+  },
+  mapBtnText: { color: C.accent, fontSize: 12, fontWeight: '600' },
   styleOn: { backgroundColor: C.accent },
   styleText: { color: C.text, fontSize: 12, fontWeight: '600' },
   overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(11,15,20,0.72)', alignItems: 'center', justifyContent: 'center', padding: 28 },

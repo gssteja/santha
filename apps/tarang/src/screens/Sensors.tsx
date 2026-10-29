@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { FlatList, StyleSheet, Text, View } from 'react-native';
 
 import { Radio, type RadioState, type SensorDevice } from '../../modules/rtl-radio';
+import { useRegion } from '../region';
 import { C, mono } from '../theme';
 import { Btn, Card, SectionTitle, s as ui } from '../ui';
 
@@ -57,6 +58,9 @@ export function Sensors({ s, bottom }: { s: RadioState; bottom: number }) {
   const devices = z?.devices ?? [];
   const hopIn = z?.nextHop ? Math.max(0, Math.round((z.nextHop - Date.now()) / 1000)) : null;
 
+  const { region } = useRegion();
+  const bands = z?.bands ?? region.sensor_bands;
+  const hops = bands.map((b) => mhz(b)).join(bands.length > 2 ? ', ' : ' and ').replace(/, ([^,]*)$/, ' and $1');
   const header = (
     <Card>
       <SectionTitle>
@@ -65,12 +69,12 @@ export function Sensors({ s, bottom }: { s: RadioState; bottom: number }) {
       </SectionTitle>
       <Text style={[ui.muted, { lineHeight: 19 }]}>
         Decodes {z?.decoders ? `${z.decoders}` : '200+'} kinds of devices with rtl_433: weather stations, pool and fridge
-        thermometers, car tire-pressure sensors, doorbells, remotes. It hops between 433.92, 315 and 915 MHz every 40 s. Use the
+        thermometers, car tire-pressure sensors, doorbells, remotes. {bands.length > 1 ? `It hops between ${hops} MHz every 40 s` : `It listens on ${hops} MHz`} ({region.name}). Use the
         small 433 MHz antenna. Most sensors transmit every 30-60 s, so give it a few minutes. The radio pauses while this tab is
         open.
       </Text>
       <View style={st.bands}>
-        {(z?.bands ?? [433.92e6, 315e6, 915e6]).map((b) => {
+        {bands.map((b) => {
           const on = listening && z?.band === b;
           return (
             <View key={b} style={[st.band, on && { borderColor: C.accent, backgroundColor: C.accentDim }]}>

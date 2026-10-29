@@ -1,15 +1,23 @@
-import { memo, useMemo } from 'react';
+import { memo, useEffect, useMemo } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { Radio, type Hit, type Mode, type RadioState } from '../../modules/rtl-radio';
 import { fmtMHz } from '../format';
-import { GROUPS } from '../presets';
+import { useGroups } from '../presets';
+import { chooseRegion, detectRegion, REGION_IDS, REGIONS, useRegion } from '../region';
 import { C, mono } from '../theme';
 import { Btn, Card, Chip, SectionTitle, s as ui } from '../ui';
 
 type Chan = { f: number; label: string; mode: Mode; bw: number; fav: boolean };
 
-export function Presets({ s, groupId, setGroupId, bottom }: { s: RadioState; groupId: string; setGroupId: (id: string) => void; bottom: number }) {
+export function Presets({ s, groupId: wanted, setGroupId, bottom }: { s: RadioState; groupId: string; setGroupId: (id: string) => void; bottom: number }) {
+  const GROUPS = useGroups();
+  const { region, auto } = useRegion();
+  // a group from another region (after switching) falls back to this region's first
+  const groupId = wanted === 'fav' || GROUPS.some((x) => x.id === wanted) ? wanted : (GROUPS[0]?.id ?? 'fav');
+  useEffect(() => {
+    if (groupId !== wanted) setGroupId(groupId);
+  }, [groupId, wanted, setGroupId]);
   const g = GROUPS.find((x) => x.id === groupId);
   const isFav = groupId === 'fav';
   const scanningThis = s.scan?.group === groupId;
@@ -49,6 +57,25 @@ export function Presets({ s, groupId, setGroupId, bottom }: { s: RadioState; gro
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: bottom }}>
       <Card>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, alignItems: 'center' }}>
+          <Text style={[ui.muted, { marginRight: 2 }]}>Region</Text>
+          <Chip
+            label={auto ? `Auto · ${region.short}` : 'Auto'}
+            on={auto}
+            onPress={() => {
+              chooseRegion('auto');
+              detectRegion().then((r) => {
+                if (!r) Alert.alert('Region', 'Couldn’t get a location here, so the last region stays. You can pick one instead.');
+              });
+            }}
+          />
+          {REGION_IDS.map((id) => (
+            <Chip key={id} label={REGIONS[id].name} on={!auto && region.id === id} onPress={() => chooseRegion(id)} />
+          ))}
+        </ScrollView>
+        <Text style={[ui.muted, { marginTop: 6, marginBottom: 10, fontSize: 12 }]}>
+          Sets the presets, survey labels, FM de-emphasis ({region.deemph_us} µs) and sensor bands for {region.name}.
+        </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6 }}>
           <Chip label="★ Favorites" on={isFav} onPress={() => setGroupId('fav')} color={C.amber} />
           {GROUPS.map((x) => (

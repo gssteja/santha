@@ -1,5 +1,6 @@
 import type { Mode, ScanChannel } from '../modules/rtl-radio';
 import raw from './presets.json';
+import { getRegion, onRegionChange, useRegion, type RegionId } from './region';
 
 export type Group = {
   id: string;
@@ -16,24 +17,49 @@ export type Group = {
   scanChannels: ScanChannel[];
 };
 
-type RawGroup = Omit<Group, 'channels' | 'scanChannels'> & { channels?: { f: number; label: string }[] };
+type RawGroup = Omit<Group, 'channels' | 'scanChannels'> & {
+  channels?: { f: number; label: string }[];
+  /** regions this group belongs to; absent = everywhere */
+  regions?: RegionId[];
+};
 
-export const GROUPS: Group[] = (raw as RawGroup[]).map((g) => {
-  let scanChannels: ScanChannel[];
-  let channels: Group['channels'];
-  if (g.range) {
-    const [start, stop, step] = g.range;
-    const count = Math.round((stop - start) / step) + 1;
-    scanChannels = Array.from({ length: count }, (_, i) => ({ f: Math.round((start + i * step) * 1e6), label: '' }));
-  } else {
-    channels = (g.channels ?? []).map((c) => ({ f: Math.round(c.f * 1e6), label: c.label }));
-    scanChannels = channels;
-  }
-  return { ...g, channels, scanChannels: scanChannels.map((c) => ({ ...c, mode: g.mode, bw: g.bw })) };
+function build(region: RegionId): Group[] {
+  return (raw as RawGroup[])
+    .filter((g) => !g.regions || g.regions.includes(region))
+    .map(({ regions: _, ...g }) => {
+      let scanChannels: ScanChannel[];
+      let channels: Group['channels'];
+      if (g.range) {
+        const [start, stop, step] = g.range;
+        const count = Math.round((stop - start) / step) + 1;
+        scanChannels = Array.from({ length: count }, (_, i) => ({ f: Math.round((start + i * step) * 1e6), label: '' }));
+      } else {
+        channels = (g.channels ?? []).map((c) => ({ f: Math.round(c.f * 1e6), label: c.label }));
+        scanChannels = channels;
+      }
+      return { ...g, channels, scanChannels: scanChannels.map((c) => ({ ...c, mode: g.mode, bw: g.bw })) };
+    });
+}
+
+/** The current region's preset groups (reassigned when the region changes). */
+export let GROUPS: Group[] = build(getRegion().id);
+let labels = new Map<number, string>();
+
+function index() {
+  labels = new Map();
+  for (const g of GROUPS) for (const c of g.channels ?? []) labels.set(c.f, c.label);
+}
+index();
+onRegionChange(() => {
+  GROUPS = build(getRegion().id);
+  index();
 });
 
-const labels = new Map<number, string>();
-for (const g of GROUPS) for (const c of g.channels ?? []) labels.set(c.f, c.label);
+/** GROUPS, re-rendering when the region changes. */
+export function useGroups(): Group[] {
+  useRegion();
+  return GROUPS;
+}
 
 export function presetLabel(f: number): string {
   for (const [cf, l] of labels) if (Math.abs(cf - f) < 1000) return l;

@@ -1,0 +1,648 @@
+{
+ "_doc": "Keep identical in rtlsdr/radio-app/regions.json and santha/apps/tarang/src/regions.json (same for presets.json). Shared by the Mac radio panel and Tarang. Frequencies in MHz unless named *_bands (Hz). boxes [west, south, east, north] pick the region from GPS; first matching band wins; tv rows are [lo, hi, channel width, first channel, US-style pilot]. aprs_hz / acars_hz feed Tarang's decoders (India's APRS and ACARS channels are unverified best guesses).",
+ "US": {
+  "name": "United States",
+  "short": "US",
+  "boxes": [
+   [
+    -125,
+    24,
+    -66,
+    50
+   ],
+   [
+    -170,
+    51,
+    -130,
+    72
+   ],
+   [
+    -161,
+    18.5,
+    -154,
+    22.5
+   ]
+  ],
+  "home": [
+   35.29,
+   -80.9
+  ],
+  "home_name": "Charlotte",
+  "deemph_us": 75,
+  "fm": [
+   88.0,
+   108.0
+  ],
+  "sensor_bands": [
+   433920000,
+   315000000,
+   915000000
+  ],
+  "tv": [
+   [
+    54,
+    60,
+    6,
+    2,
+    true
+   ],
+   [
+    60,
+    72,
+    6,
+    3,
+    true
+   ],
+   [
+    76,
+    88,
+    6,
+    5,
+    true
+   ],
+   [
+    174,
+    216,
+    6,
+    7,
+    true
+   ],
+   [
+    470,
+    608,
+    6,
+    14,
+    true
+   ]
+  ],
+  "bands": [
+   [
+    0.53,
+    1.7,
+    "AM broadcast"
+   ],
+   [
+    2.5,
+    2.500001,
+    "WWV time"
+   ],
+   [
+    26.965,
+    27.405,
+    "CB radio"
+   ],
+   [
+    28,
+    29.7,
+    "10 m ham"
+   ],
+   [
+    50,
+    54,
+    "6 m ham"
+   ],
+   [
+    88,
+    108,
+    "FM broadcast"
+   ],
+   [
+    108,
+    118,
+    "Air navigation (VOR/ILS)"
+   ],
+   [
+    118,
+    137,
+    "Airband voice"
+   ],
+   [
+    137,
+    138,
+    "Weather satellites (Meteor-M)"
+   ],
+   [
+    144,
+    148,
+    "2 m ham"
+   ],
+   [
+    151.82,
+    154.6,
+    "MURS / business"
+   ],
+   [
+    156,
+    162.025,
+    "Marine VHF"
+   ],
+   [
+    162.4,
+    162.550001,
+    "NOAA weather"
+   ],
+   [
+    148,
+    174,
+    "VHF business / public safety"
+   ],
+   [
+    216,
+    225,
+    "1.25 m ham / misc"
+   ],
+   [
+    225,
+    400,
+    "Military aviation"
+   ],
+   [
+    406,
+    406.1,
+    "Emergency beacons (406)"
+   ],
+   [
+    420,
+    450,
+    "70 cm ham"
+   ],
+   [
+    462.55,
+    462.725001,
+    "FRS / GMRS"
+   ],
+   [
+    467.55,
+    467.725001,
+    "FRS / GMRS repeater input"
+   ],
+   [
+    450,
+    470,
+    "UHF business / public safety"
+   ],
+   [
+    617,
+    652,
+    "LTE 600 MHz (downlink)"
+   ],
+   [
+    729,
+    746,
+    "LTE 700 MHz (downlink)"
+   ],
+   [
+    746,
+    757,
+    "LTE band 13 (downlink)"
+   ],
+   [
+    758,
+    769,
+    "FirstNet (public safety LTE)"
+   ],
+   [
+    769,
+    776,
+    "700 MHz public safety"
+   ],
+   [
+    851,
+    869,
+    "800 MHz trunked radio"
+   ],
+   [
+    869,
+    894,
+    "Cellular 850 (downlink)"
+   ],
+   [
+    896,
+    901,
+    "900 MHz SMR"
+   ],
+   [
+    902,
+    928,
+    "902-928 MHz unlicensed (ISM)"
+   ],
+   [
+    929,
+    932,
+    "Pagers"
+   ],
+   [
+    935,
+    940,
+    "900 MHz SMR"
+   ],
+   [
+    978,
+    978.000001,
+    "UAT (aircraft)"
+   ],
+   [
+    1088,
+    1092,
+    "ADS-B (aircraft)"
+   ],
+   [
+    1240,
+    1300,
+    "23 cm ham"
+   ],
+   [
+    1574.42,
+    1576.42,
+    "GPS L1"
+   ]
+  ],
+  "aprs_hz": [
+   144390000
+  ],
+  "acars_hz": [
+   131550000,
+   130025000,
+   130450000,
+   131125000
+  ],
+  "noaa": true
+ },
+ "QA": {
+  "name": "Qatar",
+  "short": "QA",
+  "boxes": [
+   [
+    50.7,
+    24.4,
+    51.7,
+    26.2
+   ]
+  ],
+  "home": [
+   25.273,
+   51.608
+  ],
+  "home_name": "Doha airport",
+  "deemph_us": 50,
+  "fm": [
+   87.5,
+   108.0
+  ],
+  "sensor_bands": [
+   433920000,
+   868300000
+  ],
+  "tv": [
+   [
+    174,
+    230,
+    7,
+    5,
+    false
+   ],
+   [
+    470,
+    790,
+    8,
+    21,
+    false
+   ]
+  ],
+  "bands": [
+   [
+    0.531,
+    1.602,
+    "AM broadcast"
+   ],
+   [
+    26.965,
+    27.405,
+    "CB radio"
+   ],
+   [
+    28,
+    29.7,
+    "10 m ham"
+   ],
+   [
+    50,
+    54,
+    "6 m ham"
+   ],
+   [
+    87.5,
+    108,
+    "FM broadcast"
+   ],
+   [
+    108,
+    118,
+    "Air navigation (VOR/ILS)"
+   ],
+   [
+    118,
+    137,
+    "Airband voice"
+   ],
+   [
+    137,
+    138,
+    "Weather satellites (Meteor-M)"
+   ],
+   [
+    144,
+    146,
+    "2 m ham"
+   ],
+   [
+    156,
+    162.025,
+    "Marine VHF"
+   ],
+   [
+    146,
+    174,
+    "VHF business / public safety"
+   ],
+   [
+    380,
+    400,
+    "TETRA (police / emergency, digital)"
+   ],
+   [
+    225,
+    380,
+    "Military aviation"
+   ],
+   [
+    406,
+    406.1,
+    "Emergency beacons (406)"
+   ],
+   [
+    433.05,
+    434.79,
+    "433 MHz ISM (sensors, remotes)"
+   ],
+   [
+    430,
+    440,
+    "70 cm ham"
+   ],
+   [
+    446,
+    446.2,
+    "PMR446 walkie-talkies"
+   ],
+   [
+    440,
+    470,
+    "UHF business / public safety"
+   ],
+   [
+    791,
+    821,
+    "LTE 800 (downlink)"
+   ],
+   [
+    832,
+    862,
+    "LTE 800 (uplink)"
+   ],
+   [
+    863,
+    870,
+    "868 MHz SRD (sensors, LoRa)"
+   ],
+   [
+    880,
+    915,
+    "GSM / LTE 900 (uplink)"
+   ],
+   [
+    925,
+    960,
+    "GSM / LTE 900 (downlink)"
+   ],
+   [
+    1088,
+    1092,
+    "ADS-B (aircraft)"
+   ],
+   [
+    1240,
+    1300,
+    "23 cm ham"
+   ],
+   [
+    1525,
+    1559,
+    "Inmarsat (L-band)"
+   ],
+   [
+    1574.42,
+    1576.42,
+    "GPS L1"
+   ]
+  ],
+  "aprs_hz": [
+   144800000
+  ],
+  "acars_hz": [
+   131725000,
+   131525000,
+   131825000
+  ],
+  "noaa": false
+ },
+ "IN": {
+  "name": "India",
+  "short": "IN",
+  "boxes": [
+   [
+    68,
+    6.5,
+    97.5,
+    35.7
+   ]
+  ],
+  "home": [
+   17.385,
+   78.487
+  ],
+  "home_name": "Hyderabad",
+  "deemph_us": 50,
+  "fm": [
+   88.0,
+   108.0
+  ],
+  "sensor_bands": [
+   433920000,
+   866000000
+  ],
+  "tv": [
+   [
+    174,
+    230,
+    7,
+    5,
+    false
+   ],
+   [
+    470,
+    590,
+    8,
+    21,
+    false
+   ]
+  ],
+  "bands": [
+   [
+    0.531,
+    1.602,
+    "AM broadcast"
+   ],
+   [
+    26.957,
+    27.283,
+    "CB radio"
+   ],
+   [
+    28,
+    29.7,
+    "10 m ham"
+   ],
+   [
+    50,
+    54,
+    "6 m ham"
+   ],
+   [
+    88,
+    108,
+    "FM broadcast"
+   ],
+   [
+    108,
+    118,
+    "Air navigation (VOR/ILS)"
+   ],
+   [
+    118,
+    137,
+    "Airband voice"
+   ],
+   [
+    137,
+    138,
+    "Weather satellites (Meteor-M)"
+   ],
+   [
+    144,
+    146,
+    "2 m ham"
+   ],
+   [
+    156,
+    162.025,
+    "Marine VHF"
+   ],
+   [
+    146,
+    174,
+    "VHF business / police"
+   ],
+   [
+    225,
+    400,
+    "Military aviation"
+   ],
+   [
+    406,
+    406.1,
+    "Emergency beacons (406)"
+   ],
+   [
+    433.05,
+    434.79,
+    "433 MHz ISM (sensors, remotes)"
+   ],
+   [
+    430,
+    440,
+    "70 cm ham"
+   ],
+   [
+    446,
+    446.2,
+    "PMR446 walkie-talkies"
+   ],
+   [
+    440,
+    470,
+    "UHF business / police"
+   ],
+   [
+    758,
+    803,
+    "LTE 700 (downlink)"
+   ],
+   [
+    865,
+    867,
+    "865 MHz ISM (sensors, LoRa)"
+   ],
+   [
+    869,
+    890,
+    "Cellular 850 (downlink)"
+   ],
+   [
+    890,
+    915,
+    "GSM / LTE 900 (uplink)"
+   ],
+   [
+    935,
+    960,
+    "GSM / LTE 900 (downlink)"
+   ],
+   [
+    1088,
+    1092,
+    "ADS-B (aircraft)"
+   ],
+   [
+    1175.45,
+    1177.45,
+    "NavIC L5 (Indian satnav)"
+   ],
+   [
+    1240,
+    1300,
+    "23 cm ham"
+   ],
+   [
+    1525,
+    1559,
+    "Inmarsat (L-band)"
+   ],
+   [
+    1574.42,
+    1576.42,
+    "GPS L1"
+   ]
+  ],
+  "aprs_hz": [
+   144390000,
+   145825000
+  ],
+  "acars_hz": [
+   131825000,
+   131550000,
+   131725000
+  ],
+  "noaa": false
+ }
+}

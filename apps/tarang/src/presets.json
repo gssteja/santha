@@ -2,6 +2,9 @@
   {
     "id": "clt",
     "name": "Charlotte ATC",
+    "regions": [
+      "US"
+    ],
     "mode": "AM",
     "bw": 8000,
     "desc": "Charlotte Douglas (CLT). Start with Arrival ATIS - it never stops. Approach is the best listening from NW Charlotte. Frequencies from AirNav/FAA (Aug 2026) and LiveATC forum; verify on airnav.com/airport/KCLT.",
@@ -77,6 +80,98 @@
     ]
   },
   {
+    "id": "doh",
+    "name": "Doha airport",
+    "regions": [
+      "QA"
+    ],
+    "mode": "AM",
+    "bw": 8000,
+    "desc": "Hamad International (DOH / OTHH). ATIS repeats non-stop, so start there; tower and approach are busy around the clock. Frequencies from OurAirports (community data, Oct 2026) - they may be out of date, so also run Airband (all) to find the busy ones.",
+    "channels": [
+      {
+        "f": 128.85,
+        "label": "ATIS"
+      },
+      {
+        "f": 126.85,
+        "label": "D-ATIS / Hamad info"
+      },
+      {
+        "f": 118.525,
+        "label": "Hamad Tower"
+      },
+      {
+        "f": 121.1,
+        "label": "Doha Approach"
+      },
+      {
+        "f": 118.9,
+        "label": "Old Doha (OTBD) Tower"
+      },
+      {
+        "f": 118.275,
+        "label": "Old Doha (OTBD) Ground"
+      },
+      {
+        "f": 121.5,
+        "label": "Emergency (Guard)"
+      }
+    ]
+  },
+  {
+    "id": "hyd",
+    "name": "Hyderabad airport",
+    "regions": [
+      "IN"
+    ],
+    "mode": "AM",
+    "bw": 8000,
+    "desc": "Rajiv Gandhi International (HYD / VOHS), Shamshabad. Approach and Hyderabad Control carry the arrivals over the city. Frequencies from OurAirports (community data, Oct 2026) - they may be out of date, so also run Airband (all) to find the busy ones.",
+    "channels": [
+      {
+        "f": 126.475,
+        "label": "ATIS"
+      },
+      {
+        "f": 121.625,
+        "label": "Delivery"
+      },
+      {
+        "f": 121.85,
+        "label": "Ground"
+      },
+      {
+        "f": 118.45,
+        "label": "Tower"
+      },
+      {
+        "f": 120.25,
+        "label": "Approach"
+      },
+      {
+        "f": 125.55,
+        "label": "Approach 2"
+      },
+      {
+        "f": 120.95,
+        "label": "Hyderabad Control 1"
+      },
+      {
+        "f": 128.35,
+        "label": "Hyderabad Control 2"
+      },
+      {
+        "f": 129.7,
+        "label": "Hyderabad Control 3"
+      },
+      {
+        "f": 121.5,
+        "label": "Emergency (Guard)"
+      }
+    ]
+  },
+  {
     "id": "air",
     "name": "Airband (all)",
     "mode": "AM",
@@ -91,6 +186,9 @@
   {
     "id": "wx",
     "name": "NOAA Weather",
+    "regions": [
+      "US"
+    ],
     "mode": "NFM",
     "bw": 12500,
     "desc": "NOAA Weather Radio - continuous forecasts. Try each; the strongest is your local transmitter.",
@@ -128,6 +226,9 @@
   {
     "id": "fm",
     "name": "FM Radio",
+    "regions": [
+      "US"
+    ],
     "mode": "WFM",
     "bw": 200000,
     "squelch": 10,
@@ -140,65 +241,122 @@
     ]
   },
   {
-    "id": "ham2m",
-    "name": "2m Ham",
-    "mode": "NFM",
-    "bw": 12500,
-    "desc": "Amateur radio 144-148 MHz. Repeaters are mostly 145.1-145.5 and 146.6-147.4 MHz.",
+    "id": "fm",
+    "name": "FM Radio",
+    "regions": [
+      "QA"
+    ],
+    "mode": "WFM",
+    "bw": 200000,
+    "squelch": 10,
+    "survey": true,
+    "desc": "Broadcast FM, 87.5-108 MHz on a 100 kHz raster. Press 'Find stations' to sweep the band and list every station you can receive.",
     "range": [
-      144.0,
-      148.0,
-      0.005
+      87.5,
+      108.0,
+      0.1
     ]
   },
   {
-    "id": "marine",
-    "name": "Marine VHF",
+    "id": "fm",
+    "name": "FM Radio",
+    "regions": [
+      "IN"
+    ],
+    "mode": "WFM",
+    "bw": 200000,
+    "squelch": 10,
+    "survey": true,
+    "desc": "Broadcast FM, 88-108 MHz on a 100 kHz raster: All India Radio (Vividh Bharati, FM Rainbow) plus private stations. Press 'Find stations' to sweep the band.",
+    "range": [
+      88.0,
+      108.0,
+      0.1
+    ]
+  },
+  {
+    "id": "pmr",
+    "name": "Walkie-talkies",
+    "regions": [
+      "QA",
+      "IN"
+    ],
     "mode": "NFM",
     "bw": 12500,
-    "desc": "Boats on Lake Norman / Lake Wylie. Often quiet - busiest on summer weekends.",
+    "desc": "PMR446 - the licence-free walkie-talkies sold outside the Americas: hotels, malls, events, security guards.",
     "channels": [
       {
-        "f": 156.8,
-        "label": "Ch 16 Distress/Calling"
+        "f": 446.00625,
+        "label": "Ch 1"
       },
       {
-        "f": 156.45,
-        "label": "Ch 9 Boater calling"
+        "f": 446.01875,
+        "label": "Ch 2"
       },
       {
-        "f": 156.65,
-        "label": "Ch 13 Bridge-to-bridge"
+        "f": 446.03125,
+        "label": "Ch 3"
       },
       {
-        "f": 157.1,
-        "label": "Ch 22A Coast Guard"
+        "f": 446.04375,
+        "label": "Ch 4"
       },
       {
-        "f": 156.425,
-        "label": "Ch 68"
+        "f": 446.05625,
+        "label": "Ch 5"
       },
       {
-        "f": 156.475,
-        "label": "Ch 69"
+        "f": 446.06875,
+        "label": "Ch 6"
       },
       {
-        "f": 156.575,
-        "label": "Ch 71"
+        "f": 446.08125,
+        "label": "Ch 7"
       },
       {
-        "f": 156.625,
-        "label": "Ch 72"
+        "f": 446.09375,
+        "label": "Ch 8"
       },
       {
-        "f": 156.925,
-        "label": "Ch 78A"
+        "f": 446.10625,
+        "label": "Ch 9"
+      },
+      {
+        "f": 446.11875,
+        "label": "Ch 10"
+      },
+      {
+        "f": 446.13125,
+        "label": "Ch 11"
+      },
+      {
+        "f": 446.14375,
+        "label": "Ch 12"
+      },
+      {
+        "f": 446.15625,
+        "label": "Ch 13"
+      },
+      {
+        "f": 446.16875,
+        "label": "Ch 14"
+      },
+      {
+        "f": 446.18125,
+        "label": "Ch 15"
+      },
+      {
+        "f": 446.19375,
+        "label": "Ch 16"
       }
     ]
   },
   {
     "id": "frs",
     "name": "Walkie-talkies",
+    "regions": [
+      "US"
+    ],
     "mode": "NFM",
     "bw": 12500,
     "desc": "FRS/GMRS - consumer walkie-talkies used by families, events, construction crews.",
@@ -294,8 +452,111 @@
     ]
   },
   {
+    "id": "marine",
+    "name": "Marine VHF",
+    "regions": [
+      "US"
+    ],
+    "mode": "NFM",
+    "bw": 12500,
+    "desc": "Boats on Lake Norman / Lake Wylie. Often quiet - busiest on summer weekends.",
+    "channels": [
+      {
+        "f": 156.8,
+        "label": "Ch 16 Distress/Calling"
+      },
+      {
+        "f": 156.45,
+        "label": "Ch 9 Boater calling"
+      },
+      {
+        "f": 156.65,
+        "label": "Ch 13 Bridge-to-bridge"
+      },
+      {
+        "f": 157.1,
+        "label": "Ch 22A Coast Guard"
+      },
+      {
+        "f": 156.425,
+        "label": "Ch 68"
+      },
+      {
+        "f": 156.475,
+        "label": "Ch 69"
+      },
+      {
+        "f": 156.575,
+        "label": "Ch 71"
+      },
+      {
+        "f": 156.625,
+        "label": "Ch 72"
+      },
+      {
+        "f": 156.925,
+        "label": "Ch 78A"
+      }
+    ]
+  },
+  {
+    "id": "marine",
+    "name": "Marine VHF",
+    "regions": [
+      "QA"
+    ],
+    "mode": "NFM",
+    "bw": 12500,
+    "desc": "Ships, dhows and port operations along the Doha coast. Ch 16 is distress / calling; 12 and 14 are port operations.",
+    "channels": [
+      {
+        "f": 156.8,
+        "label": "Ch 16 Distress/Calling"
+      },
+      {
+        "f": 156.3,
+        "label": "Ch 6 Ship-to-ship"
+      },
+      {
+        "f": 156.6,
+        "label": "Ch 12 Port ops"
+      },
+      {
+        "f": 156.7,
+        "label": "Ch 14 Port ops"
+      },
+      {
+        "f": 156.65,
+        "label": "Ch 13 Bridge-to-bridge"
+      },
+      {
+        "f": 156.5,
+        "label": "Ch 10"
+      },
+      {
+        "f": 156.375,
+        "label": "Ch 67"
+      },
+      {
+        "f": 156.475,
+        "label": "Ch 69"
+      },
+      {
+        "f": 156.625,
+        "label": "Ch 72"
+      },
+      {
+        "f": 156.875,
+        "label": "Ch 77"
+      }
+    ]
+  },
+  {
     "id": "cb",
     "name": "CB radio",
+    "regions": [
+      "US"
+    ],
     "mode": "AM",
     "bw": 8000,
     "desc": "Citizens Band, 27 MHz. Channel 19 is the highway channel - truckers on I-77/I-85. Works with the telescopic antenna fully extended; a longer wire helps.",
@@ -463,8 +724,131 @@
     ]
   },
   {
+    "id": "cb",
+    "name": "CB radio",
+    "regions": [
+      "IN"
+    ],
+    "mode": "AM",
+    "bw": 8000,
+    "desc": "Citizens Band, 27 MHz - licence-free in India from 26.957 to 27.283 MHz. Quiet in cities; truckers and hobbyists use it. Extend the telescopic antenna fully.",
+    "channels": [
+      {
+        "f": 26.965,
+        "label": "Ch 1"
+      },
+      {
+        "f": 26.975,
+        "label": "Ch 2"
+      },
+      {
+        "f": 26.985,
+        "label": "Ch 3"
+      },
+      {
+        "f": 27.005,
+        "label": "Ch 4"
+      },
+      {
+        "f": 27.015,
+        "label": "Ch 5"
+      },
+      {
+        "f": 27.025,
+        "label": "Ch 6"
+      },
+      {
+        "f": 27.035,
+        "label": "Ch 7"
+      },
+      {
+        "f": 27.055,
+        "label": "Ch 8"
+      },
+      {
+        "f": 27.065,
+        "label": "Ch 9 Emergency"
+      },
+      {
+        "f": 27.075,
+        "label": "Ch 10"
+      },
+      {
+        "f": 27.085,
+        "label": "Ch 11"
+      },
+      {
+        "f": 27.105,
+        "label": "Ch 12"
+      },
+      {
+        "f": 27.115,
+        "label": "Ch 13"
+      },
+      {
+        "f": 27.125,
+        "label": "Ch 14"
+      },
+      {
+        "f": 27.135,
+        "label": "Ch 15"
+      },
+      {
+        "f": 27.155,
+        "label": "Ch 16"
+      },
+      {
+        "f": 27.165,
+        "label": "Ch 17"
+      },
+      {
+        "f": 27.175,
+        "label": "Ch 18"
+      },
+      {
+        "f": 27.185,
+        "label": "Ch 19 Highway/truckers"
+      },
+      {
+        "f": 27.205,
+        "label": "Ch 20"
+      },
+      {
+        "f": 27.215,
+        "label": "Ch 21"
+      },
+      {
+        "f": 27.225,
+        "label": "Ch 22"
+      },
+      {
+        "f": 27.255,
+        "label": "Ch 23"
+      },
+      {
+        "f": 27.235,
+        "label": "Ch 24"
+      },
+      {
+        "f": 27.245,
+        "label": "Ch 25"
+      },
+      {
+        "f": 27.265,
+        "label": "Ch 26"
+      },
+      {
+        "f": 27.275,
+        "label": "Ch 27"
+      }
+    ]
+  },
+  {
     "id": "amb",
     "name": "AM radio (HF)",
+    "regions": [
+      "US"
+    ],
     "mode": "AM",
     "bw": 10000,
     "squelch": 10,
@@ -477,8 +861,29 @@
     ]
   },
   {
+    "id": "amb",
+    "name": "AM radio (HF)",
+    "regions": [
+      "QA",
+      "IN"
+    ],
+    "mode": "AM",
+    "bw": 10000,
+    "squelch": 10,
+    "survey": true,
+    "desc": "AM broadcast 531-1602 kHz on the 9 kHz raster used outside the Americas (All India Radio in India). Needs a long wire antenna, ideally outdoors.",
+    "range": [
+      0.531,
+      1.602,
+      0.009
+    ]
+  },
+  {
     "id": "time",
     "name": "Time stations (HF)",
+    "regions": [
+      "US"
+    ],
     "mode": "AM",
     "bw": 6000,
     "desc": "WWV (Colorado) and CHU (Canada) broadcast time ticks and voice announcements 24/7 - the classic HF test. Needs a long wire antenna; 10 and 15 MHz are usually best by day, 5 MHz at night.",
@@ -518,6 +923,47 @@
     ]
   },
   {
+    "id": "time",
+    "name": "Time stations (HF)",
+    "regions": [
+      "QA",
+      "IN"
+    ],
+    "mode": "AM",
+    "bw": 6000,
+    "desc": "Time signals: BPM (China) shares 5/10/15 MHz with WWV, and RWM (Moscow) beeps in Morse just below. From the Gulf and India, BPM is usually the one you hear, best at night. Needs a long wire antenna.",
+    "channels": [
+      {
+        "f": 2.5,
+        "label": "BPM 2.5"
+      },
+      {
+        "f": 4.996,
+        "label": "RWM 4.996"
+      },
+      {
+        "f": 5.0,
+        "label": "BPM 5"
+      },
+      {
+        "f": 9.996,
+        "label": "RWM 9.996"
+      },
+      {
+        "f": 10.0,
+        "label": "BPM / WWV 10"
+      },
+      {
+        "f": 14.996,
+        "label": "RWM 14.996"
+      },
+      {
+        "f": 15.0,
+        "label": "BPM / WWV 15"
+      }
+    ]
+  },
+  {
     "id": "sw31",
     "name": "Shortwave 31 m (HF)",
     "mode": "AM",
@@ -532,14 +978,64 @@
     ]
   },
   {
+    "id": "ham2m",
+    "name": "2m Ham",
+    "regions": [
+      "US"
+    ],
+    "mode": "NFM",
+    "bw": 12500,
+    "desc": "Amateur radio 144-148 MHz. Repeaters are mostly 145.1-145.5 and 146.6-147.4 MHz.",
+    "range": [
+      144.0,
+      148.0,
+      0.005
+    ]
+  },
+  {
+    "id": "ham2m",
+    "name": "2m Ham",
+    "regions": [
+      "QA",
+      "IN"
+    ],
+    "mode": "NFM",
+    "bw": 12500,
+    "desc": "Amateur radio 144-146 MHz (the 2 m band outside the Americas). Mostly FM; activity is light, so leave it scanning.",
+    "range": [
+      144.0,
+      146.0,
+      0.005
+    ]
+  },
+  {
     "id": "ham40",
     "name": "Ham 40 m (HF)",
+    "regions": [
+      "US"
+    ],
     "mode": "LSB",
     "bw": 2800,
     "desc": "Amateur radio voice, 7.125-7.300 MHz, LSB. Needs a long wire antenna. If voices sound like Donald Duck, nudge the frequency with the arrows.",
     "range": [
       7.125,
       7.3,
+      0.0025
+    ]
+  },
+  {
+    "id": "ham40",
+    "name": "Ham 40 m (HF)",
+    "regions": [
+      "QA",
+      "IN"
+    ],
+    "mode": "LSB",
+    "bw": 2800,
+    "desc": "Amateur radio voice, 7.050-7.200 MHz, LSB (the 40 m phone band outside the Americas). Needs a long wire antenna. If voices sound like Donald Duck, nudge the frequency with the arrows.",
+    "range": [
+      7.05,
+      7.2,
       0.0025
     ]
   }
