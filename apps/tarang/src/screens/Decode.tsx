@@ -5,10 +5,12 @@ import { Radio, type AcarsMessage, type AprsStation, type RadioState, type Weath
 import { C, mono } from '../theme';
 import { Badge, Btn, Card, Chip, SectionTitle, s as ui } from '../ui';
 import { Sensors } from './Sensors';
+import { Trunk } from './Trunk';
 
-export type DecodeMode = 'sensors' | 'weather' | 'aprs' | 'acars';
+export type DecodeMode = 'sensors' | 'weather' | 'aprs' | 'acars' | 'p25';
 
 const MODES: { id: DecodeMode; name: string }[] = [
+  { id: 'p25', name: 'P25 trunk' },
   { id: 'weather', name: 'Weather alerts' },
   { id: 'aprs', name: 'APRS' },
   { id: 'acars', name: 'ACARS' },
@@ -44,6 +46,7 @@ export function Decode({ s, mode, setMode, bottom }: { s: RadioState; mode: Deco
       {mode === 'weather' && <Weather s={s} bottom={bottom} />}
       {mode === 'aprs' && <Aprs s={s} bottom={bottom} />}
       {mode === 'acars' && <Acars s={s} bottom={bottom} />}
+      {mode === 'p25' && <Trunk s={s} bottom={bottom} />}
     </View>
   );
 }

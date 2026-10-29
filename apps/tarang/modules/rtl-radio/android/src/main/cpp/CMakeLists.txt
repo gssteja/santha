@@ -31,9 +31,20 @@ target_compile_definitions(r433 PRIVATE _GNU_SOURCE NDEBUG)
 target_compile_options(r433 PRIVATE -O2 -w -ffunction-sections -fdata-sections -fvisibility=hidden)
 set_target_properties(r433 PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
-add_library(tarangdsp SHARED dsp.cpp rds.cpp adsb.cpp same.cpp aprs.cpp acars.cpp jni.cpp)
+# mbelib (vendored, see mbelib/README.md): IMBE / AMBE+2 speech synthesis for P25 voice, as plain C
+add_library(mbe STATIC
+    mbelib/mbelib.c
+    mbelib/imbe7200x4400.c
+    mbelib/ambe3600x2450.c
+    mbelib/ecc.c)
+target_compile_definitions(mbe PRIVATE MBELIB_VERSION="1.3.0")
+target_compile_options(mbe PRIVATE -O2 -w -ffunction-sections -fdata-sections -fvisibility=hidden)
+set_target_properties(mbe PROPERTIES POSITION_INDEPENDENT_CODE ON)
+
+add_library(tarangdsp SHARED dsp.cpp rds.cpp adsb.cpp same.cpp aprs.cpp acars.cpp jni.cpp
+    p25fec.cpp p25demod.cpp p25p1.cpp p25p2.cpp p25trunk.cpp p25.cpp p25voice.cpp p25jni.cpp)
 
 # -ffast-math lets clang reassociate the FIR dot products into NEON vector reductions.
 target_compile_options(tarangdsp PRIVATE -O3 -ffast-math -fno-exceptions -fno-rtti -Wall)
-target_link_libraries(tarangdsp PRIVATE r433 m)
+target_link_libraries(tarangdsp PRIVATE r433 mbe m)
 target_link_options(tarangdsp PRIVATE -Wl,--gc-sections -Wl,-z,max-page-size=16384)

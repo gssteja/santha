@@ -30,7 +30,7 @@ const TABS: { id: Tab; icon: string; name: string }[] = [
 /** The Planes and Decode tabs take over the dongle (as on the Mac); every other tab is the radio. */
 const modeFor = (t: Tab, d: DecodeMode): AppMode => (t === 'planes' ? 'planes' : t === 'decode' ? d : 'radio');
 
-const DECODE_MODES: AppMode[] = ['sensors', 'weather', 'aprs', 'acars'];
+const DECODE_MODES: AppMode[] = ['sensors', 'weather', 'aprs', 'acars', 'p25'];
 
 export default function App() {
   return (

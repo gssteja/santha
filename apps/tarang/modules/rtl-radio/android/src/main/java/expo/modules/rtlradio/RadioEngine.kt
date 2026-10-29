@@ -40,7 +40,8 @@ import kotlin.math.sqrt
  * channels), scanning, the FM station survey and the band activity sweep. A port of the Mac radio panel's
  * Radio class (server.py). The same thread can instead track planes (ADS-B at 1090 MHz, the Mac's dump1090),
  * decode wireless sensors (rtl_433's decoders, hopping 433.92 / 315 / 915 MHz), watch NOAA Weather Radio for
- * alerts (SAME), receive APRS (144.39 MHz) or ACARS (four channels around 131 MHz): see [appMode].
+ * alerts (SAME), receive APRS (144.39 MHz) or ACARS (four channels around 131 MHz), or follow a P25 trunked system
+ * (control channel, voice grants, Phase 1 / Phase 2 voice: [P25Mode]): see [appMode].
  *
  * Commands arrive from JS as maps and are applied on the radio thread between blocks. State goes back to JS
  * a few times a second through [stateListener]; the spectrum goes straight to native views through
@@ -82,7 +83,8 @@ object RadioEngine {
   private const val ALERT_AUDIO_MS = 4 * 60_000L // play the voice message this long after a local alert (or until NNNN)
   private const val APRS_FREQ = 144_390_000L    // North America; the region can change it
   private val ACARS_CHANNELS = longArrayOf(130_025_000L, 130_450_000L, 131_125_000L, 131_550_000L) // the busy US ones
-  private val DECODE_MODES = setOf("weather", "aprs", "acars")
+  private val DECODE_MODES = setOf("weather", "aprs", "acars", "p25")
+  private const val P25_BLOCK = 76_800          // 32 ms: grants get acted on sooner than with listening's 64 ms
 
   val DEFAULT_BW = mapOf("AM" to 8000, "NFM" to 12500, "WFM" to 200000, "USB" to 2800, "LSB" to 2800, "CW" to 500)
 
@@ -201,7 +203,7 @@ object RadioEngine {
 
   /**
    * What the dongle is for: "radio" (listen/scan), "planes" (ADS-B), "sensors" (rtl_433), "weather" (NOAA SAME
-   * alerts), "aprs" or "acars". Follows the open tab.
+   * alerts), "aprs", "acars" or "p25" (trunked radio). Follows the open tab.
    */
   @Volatile var appMode = "radio"
     private set
@@ -273,6 +275,8 @@ object RadioEngine {
   @Volatile private var decodeListen = false // play the decoded channel's audio
   private var decodeVersion = 0
   private var sentDecodeVersion = -1
+  private var sentP25Version = -1
+  private var sentP25DirVersion = -1
   private var lastDecodeTick = 0L
   private var wxDec: WeatherAlertDecoder? = null
   private var wxFreq = 162_550_000L
@@ -310,6 +314,8 @@ object RadioEngine {
       sentPlanesVersion = -1
       sentSensorsVersion = -1
       sentDecodeVersion = -1
+      sentP25Version = -1
+      sentP25DirVersion = -1
     }
 
   /** Called with a short "now playing" line whenever it changes (for the notification). */
@@ -365,6 +371,7 @@ object RadioEngine {
     val la = rxLat
     val lo = rxLon
     if (wxCounty == null && la != null && lo != null) wxCounty = Counties.nearest(context, la, lo)?.fips
+    P25Mode.init(context)
   }
 
   private fun saveSettings() {
@@ -468,6 +475,7 @@ object RadioEngine {
             hwMode == "weather" -> weatherBlock(dsp, audio)
             hwMode == "aprs" -> aprsBlock(dsp, audio)
             hwMode == "acars" -> acarsBlock(dsp)
+            hwMode == "p25" -> p25Block(dsp, audio)
             sc?.state == "search" || sc?.state == "survey" -> scanStep(dsp, sc)
             sc?.state == "sweep" -> sweepStep(dsp, sc)
             else -> listenBlock(dsp, audio)
@@ -498,6 +506,7 @@ object RadioEngine {
       aprsDec = null
       acarsDec?.release()
       acarsDec = null
+      P25Mode.release()
     }
   }
 
@@ -1373,6 +1382,23 @@ object RadioEngine {
     workNs += System.nanoTime() - t0
   }
 
+  /** P25 trunking: the receiver says where the dongle should be (the control channel, or a call's voice channel). */
+  private fun p25Block(dsp: Dsp, audio: AudioOut) {
+    val want = P25Mode.wantCenter()
+    if (want == 0L) { // no control channels configured
+      sleepQuietly(100)
+      return
+    }
+    if (want != hwCenter) tuneHw(dsp, want)
+    val hw = hwCenter ?: return
+    readBlock(dsp, P25_BLOCK)
+    val t0 = System.nanoTime()
+    val audible = P25Mode.block(dsp.iq, P25_BLOCK, hw, SystemClock.elapsedRealtime(), dsp.audio)
+    audio.write(dsp.audio, P25_BLOCK / 50, audible)
+    blocks++
+    workNs += System.nanoTime() - t0
+  }
+
   /** Counties around the phone, nearest first, for picking the weather-alert county by hand. */
   fun nearbyCounties(): List<Map<String, Any?>> {
     val ctx = appContext ?: return emptyList()
@@ -1695,7 +1721,10 @@ object RadioEngine {
         sensorsVersion++
         return false
       }
-      else -> return false
+      else -> {
+        if ((cmd["action"] as? String)?.startsWith("p25_") == true) P25Mode.command(cmd, SystemClock.elapsedRealtime())
+        return false
+      }
     }
     return true
   }
@@ -1716,7 +1745,11 @@ object RadioEngine {
       sentSensorsVersion = sensorsVersion
       val decode = sentDecodeVersion != decodeVersion
       sentDecodeVersion = decodeVersion
-      l(snapshot(full, planes, sensors, decode))
+      val p25 = sentP25Version != P25Mode.version
+      sentP25Version = P25Mode.version
+      val p25Dir = sentP25DirVersion != P25Mode.dirVersion
+      sentP25DirVersion = P25Mode.dirVersion
+      l(snapshot(full, planes, sensors, decode, p25, p25Dir))
     }
     val np = nowPlaying()
     if (np != lastNowPlaying) {
@@ -1728,6 +1761,7 @@ object RadioEngine {
   fun nowPlaying(): String {
     val parts = ArrayList<String>()
     when (appMode) {
+      "p25" -> return P25Mode.nowPlaying(status, error)
       "planes" -> {
         val f = planesFrame
         parts.add("Tracking planes")
@@ -1773,9 +1807,12 @@ object RadioEngine {
 
   /**
    * Everything JS shows. The lists (hits, favorites, survey, RDS names, recordings) are only included when [full],
-   * the plane, sensor and decoder tables when [planes] / [sensors] / [decode].
+   * the plane, sensor and decoder tables when [planes] / [sensors] / [decode], P25 when [p25] / [p25Dir].
    */
-  fun snapshot(full: Boolean = true, planes: Boolean = full, sensors: Boolean = full, decode: Boolean = full): Map<String, Any?> {
+  fun snapshot(
+    full: Boolean = true, planes: Boolean = full, sensors: Boolean = full, decode: Boolean = full, p25: Boolean = full,
+    p25Dir: Boolean = full,
+  ): Map<String, Any?> {
     val sc = scan
     val r = rds
     val b = vfoB
@@ -1807,6 +1844,8 @@ object RadioEngine {
     if (planes) m["planes"] = planesInfo
     if (sensors) m["sensors"] = sensorsInfo()
     if (decode) m["decode"] = decodeInfo()
+    if (p25) m["p25"] = P25Mode.info()
+    if (p25Dir) m["p25Dir"] = P25Mode.directory()
     m["vfoB"] = b?.let {
       mapOf(
         "freq" to it.freq.toDouble(), "mode" to it.mode, "bw" to it.bw, "squelch" to it.squelch, "label" to it.label,

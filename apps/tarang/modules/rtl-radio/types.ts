@@ -14,7 +14,7 @@ export type SweepResult = { t: number; start: number; stop: number; step: number
 
 export type Recording = { id: string; name: string; seconds: number };
 
-export type AppMode = 'radio' | 'planes' | 'sensors' | 'weather' | 'aprs' | 'acars';
+export type AppMode = 'radio' | 'planes' | 'sensors' | 'weather' | 'aprs' | 'acars' | 'p25';
 
 /** A decoded NOAA Weather Radio alert (times are epoch ms). */
 export type WeatherAlert = {
@@ -83,6 +83,82 @@ export type Decode = {
   aprs: { freq: number; packets: number; stations: AprsStation[]; log: { t: number; kind: string; from: string; to?: string; text: string }[] };
   acars: { channels: number[]; count: number; messages: AcarsMessage[] };
 };
+
+/** A P25 talkgroup as heard on the control channel (t: epoch ms of the last grant; enc: 1 / 0 / -1 unknown). */
+export type P25Talkgroup = {
+  id: number;
+  name: string;
+  cat: string;
+  fav: boolean;
+  lockout: boolean;
+  t: number;
+  calls: number;
+  src: number;
+  enc: number;
+  emergency: boolean;
+  f: number;
+  slot: number;
+  tdma: boolean;
+};
+
+/** The call being followed: enc is 1 encrypted, 0 confirmed clear (only then is it played), -1 not known yet. */
+export type P25Call = {
+  tg: number;
+  name: string;
+  cat: string;
+  fav: boolean;
+  lockout: boolean;
+  src: number;
+  f: number;
+  slot: number;
+  tdma: boolean;
+  enc: number;
+  algid: number;
+  emergency: boolean;
+  dur: number;
+  frames: number;
+  talking: boolean;
+};
+
+export type P25LogEntry = P25Call & { t: number; end: string };
+
+export type P25 = {
+  mode: 'off' | 'hunt' | 'control' | 'voice';
+  system: string;
+  cc: number;
+  nac: number;
+  wacn: number;
+  sysid: number;
+  rfss: number;
+  site: number;
+  grants: number;
+  hold: number;
+  ccs: number[];
+  adjacent: { f: number; site: string }[];
+  patches: { sg: number; tgs: number[] }[];
+  call: P25Call | null;
+  tgs: P25Talkgroup[];
+  log: P25LogEntry[];
+  rx: {
+    path: 'c4fm' | 'cqpsk';
+    afc: number;
+    quality: number;
+    syncs: number;
+    frames: number;
+    nidFails: number;
+    tsbks: number;
+    tsbkFails: number;
+    p2: { locked: boolean; slot: number; macs: number; macFails: number; voice: number };
+    audioMs: number;
+    want: number;
+    retunes: number;
+  };
+  sites: { index: number; name: string; nac: number; ccs: number[] }[];
+  settings: { site: number; ccs: number[]; custom: boolean; listen: boolean; favoritesOnly: boolean; hangMs: number; hold: number };
+};
+
+/** Every named talkgroup (preset + the user's), for browsing and favorites / lockouts. */
+export type P25DirEntry = { id: number; name: string; cat: string; desc: string; enc: boolean; fav: boolean; lockout: boolean };
 
 /** One aircraft (alt ft, gs kt, vr ft/min, dist nm from the phone, seen s ago). */
 export type Aircraft = {
@@ -168,6 +244,8 @@ export type RadioState = {
   planes: Planes | null;
   sensors: Sensors | null;
   decode: Decode | null;
+  p25: P25 | null;
+  p25Dir: P25DirEntry[] | null;
   listsVersion: number;
   hits: Hit[];
   favorites: Favorite[];
@@ -201,4 +279,12 @@ export type RadioCommand =
   | { action: 'sensors_clear' }
   | { action: 'decode_listen'; on: boolean }
   | { action: 'decode_clear'; what: 'weather' | 'aprs' | 'acars' }
-  | { action: 'wx_county'; fips: string | null };
+  | { action: 'wx_county'; fips: string | null }
+  | { action: 'p25_listen' | 'p25_favorites_only'; on: boolean }
+  | { action: 'p25_hang'; ms: number }
+  | { action: 'p25_site'; index: number }
+  | { action: 'p25_ccs'; mhz: number[] }
+  | { action: 'p25_tg'; id: number; name?: string; fav?: boolean; lockout?: boolean }
+  | { action: 'p25_import'; text: string }
+  | { action: 'p25_names_reset' | 'p25_skip' }
+  | { action: 'p25_hold'; tg: number };
