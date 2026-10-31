@@ -171,6 +171,35 @@ app.delete('/api/workouts/:id', requireAppKey, (req, res) => {
   res.json({ ok: true });
 });
 
+// ── Health sync (Kasrat ← Health Connect) ────────────────────────────────────
+
+const HEALTH_FILE = path.join(DATA_DIR, 'health.json');
+
+function readHealth() {
+  if (!fs.existsSync(HEALTH_FILE)) return [];
+  try { return JSON.parse(fs.readFileSync(HEALTH_FILE, 'utf8')); } catch { return []; }
+}
+
+// GET /api/health — one record per local day (sleep, heart rate, HRV, steps, weight, …), oldest first
+app.get('/api/health', requireAppKey, (_req, res) => {
+  res.json(readHealth());
+});
+
+// POST /api/health/sync — days keyed by `date`; the newer `updatedAt` wins
+app.post('/api/health/sync', requireAppKey, (req, res) => {
+  const incoming = req.body;
+  if (!Array.isArray(incoming)) return res.status(400).json({ error: 'expected array' });
+  const byDate = new Map(readHealth().map(d => [d.date, d]));
+  for (const d of incoming) {
+    if (!d || typeof d.date !== 'string') continue;
+    const cur = byDate.get(d.date);
+    if (!cur || (d.updatedAt || 0) >= (cur.updatedAt || 0)) byDate.set(d.date, d);
+  }
+  const merged = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date));
+  fs.writeFileSync(HEALTH_FILE, JSON.stringify(merged, null, 2));
+  res.json({ ok: true, count: merged.length });
+});
+
 // ── Finance sync (Gullak) ─────────────────────────────────────────────────────
 
 const FINANCE_FILE = path.join(DATA_DIR, 'finance.json');
