@@ -83,7 +83,7 @@ export function HealthCard() {
       <View style={styles.head}>
         <Text style={styles.kicker}>HEALTH CONNECT</Text>
         <TouchableOpacity
-          onPress={() => { haptics.tap(); sync(); }}
+          onPress={() => { haptics.tap(); sync({ full: true }); }}
           disabled={syncing}
           accessibilityRole="button"
           accessibilityLabel="Sync Health Connect now"

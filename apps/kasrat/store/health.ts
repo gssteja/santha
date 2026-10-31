@@ -361,8 +361,9 @@ export async function readDays(keys: string[], granted: Set<string>): Promise<Da
 const HOUR = 3_600_000;
 /** A Samsung session can stay open (or unsynced) for a while after Kasrat's finish. */
 const WRITE_GRACE_MS = 2 * HOUR;
-/** Keep looking for a late Samsung session to replace Kasrat's own write for this long. */
-const RECHECK_MS = 48 * HOUR;
+/** Keep looking for a late Samsung session to replace Kasrat's own write for this long
+ *  (also covers sharing switched on in Samsung Health after the fact). */
+const RECHECK_MS = 30 * 24 * HOUR;
 /** Timers left running overnight make the logged duration useless as a window. */
 const MAX_PLAUSIBLE_SEC = 4 * 3600;
 

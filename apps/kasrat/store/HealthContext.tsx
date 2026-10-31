@@ -19,12 +19,15 @@ import type { DailyHealth, HealthStatus, Recovery } from './health';
 
 // Health Connect sync: on launch and whenever the app comes back to the foreground (at most
 // every 5 min), pull the recent days, import weigh-ins into Body, match or write workouts,
-// and mirror the days to the server so they're readable off the phone.
+// and mirror the days to the server so they're readable off the phone. The full window is
+// re-read once a day and on a manual sync, so apps that start sharing later (or backfill
+// late) still land.
 const STORAGE_KEY = 'kasrat_health_v1';
 const KEEP_DAYS = 90;
-const FIRST_SYNC_DAYS = 30;
+const FULL_SYNC_DAYS = 30;
 const RESYNC_DAYS = 3;
 const MIN_INTERVAL_MS = 5 * 60_000;
+const FULL_INTERVAL_MS = 24 * 3_600_000;
 
 async function pushDays(days: DailyHealth[]) {
   try {
@@ -44,6 +47,7 @@ function useHealthStore() {
   const [status, setStatus] = useState<HealthStatus | null>(null);
   const [days, setDays] = useState<DailyHealth[]>([]);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const [lastFullAt, setLastFullAt] = useState<number | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
@@ -54,6 +58,8 @@ function useHealthStore() {
   daysRef.current = days;
   const lastSyncRef = useRef(lastSyncAt);
   lastSyncRef.current = lastSyncAt;
+  const lastFullRef = useRef(lastFullAt);
+  lastFullRef.current = lastFullAt;
   const busy = useRef(false);
 
   useEffect(() => {
@@ -63,6 +69,7 @@ function useHealthStore() {
           const p = JSON.parse(raw);
           setDays(p.days ?? []);
           setLastSyncAt(p.lastSyncAt ?? null);
+          setLastFullAt(p.lastFullAt ?? null);
         } catch {}
       }
       setLoaded(true);
@@ -72,10 +79,10 @@ function useHealthStore() {
 
   useEffect(() => {
     if (!loaded) return;
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ days, lastSyncAt }));
-  }, [days, lastSyncAt, loaded]);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ days, lastSyncAt, lastFullAt }));
+  }, [days, lastSyncAt, lastFullAt, loaded]);
 
-  const sync = useCallback(async () => {
+  const sync = useCallback(async (opts?: { full?: boolean }) => {
     if (busy.current) return;
     busy.current = true;
     setSyncing(true);
@@ -85,7 +92,8 @@ function useHealthStore() {
       if (st !== 'connected') return;
       const granted = await grantedAccess();
 
-      const fresh = await readDays(lastDays(lastSyncRef.current ? RESYNC_DAYS : FIRST_SYNC_DAYS), granted);
+      const full = opts?.full || !lastFullRef.current || Date.now() - lastFullRef.current > FULL_INTERVAL_MS;
+      const fresh = await readDays(lastDays(full ? FULL_SYNC_DAYS : RESYNC_DAYS), granted);
       const byDate = new Map(daysRef.current.map(d => [d.date, d]));
       for (const d of fresh) byDate.set(d.date, d);
       const cutoff = lastDays(KEEP_DAYS)[0];
@@ -102,6 +110,7 @@ function useHealthStore() {
       replaceRecords(await syncWorkouts(historyRef.current, granted));
       await pushDays(fresh);
       setLastSyncAt(Date.now());
+      if (full) setLastFullAt(Date.now());
     } finally {
       busy.current = false;
       setSyncing(false);
@@ -111,7 +120,7 @@ function useHealthStore() {
   const connect = useCallback(async () => {
     const ok = await connectHealth();
     setStatus(await healthStatus());
-    if (ok) sync();
+    if (ok) sync({ full: true });
     return ok;
   }, [sync]);
 
