@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store/StoreContext';
 import { useMetrics } from '@/store/MetricsContext';
 import { makeProgramExerciseBlock } from '@/store/workoutStore';
-import { ACTIVE_PROGRAM_ID, PROGRAMS, getProgram, isHeavyWeek, isWaved, resolveReps, repsToInput, repSequence } from '@/store/programs';
+import { ACTIVE_PROGRAM_ID, PROGRAMS, getProgram, isDayNamed, isHeavyWeek, isWaved, resolveReps, repsToInput, repSequence } from '@/store/programs';
 import { suggestLoad, detectStall, deloadMessage, recentPRs } from '@/engine/progression';
 import type { PRKind } from '@/engine/progression';
 import { C, F, FONT, HEAT, RADIUS, SHADOW, heatForFraction } from '@/constants/theme';
@@ -153,7 +153,7 @@ export default function TodayScreen() {
       // A retired program's sessions must not move this program's rotation. Untagged
       // records predate programId, so they only count if a day name still matches.
       if (rec.programId && rec.programId !== activeProgram?.id) continue;
-      const idx = days.findIndex(d => d.name === rec.name);
+      const idx = days.findIndex(d => isDayNamed(d, rec.name));
       if (idx >= 0) {
         const lastWeek = rec.week ?? 1;
         const nextIdx = (idx + 1) % days.length;

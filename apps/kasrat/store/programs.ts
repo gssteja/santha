@@ -22,8 +22,14 @@ export type ProgramExercise = {
 
 export type ProgramDay = {
   name: string;
+  /** Earlier names of this day, so sessions logged under them still drive the rotation. */
+  aliases?: string[];
   exercises: ProgramExercise[];
 };
+
+export function isDayNamed(day: ProgramDay, name: string): boolean {
+  return day.name === name || !!day.aliases?.includes(name);
+}
 
 export type Program = {
   id: string;
@@ -109,7 +115,7 @@ export const PROGRAMS: Program[] = [
   },
   // Jeff Nippard — Ultimate Push Pull Legs (phase 1), adapted to Planet Fitness (Charlotte,
   // Tryon St): Smith machine, selectorized machines, dumbbells, cables — no olympic bar, no
-  // racks, no lateral-raise machine. Every barbell lift moves to the Smith machine or dumbbells.
+  // racks, no lateral-raise machine. Every barbell lift but the deadlift moves to the Smith machine or dumbbells.
   // Six days rotate off logged history, so a 4-day week just rolls the cycle into the next.
   {
     id: 'nippard-ppl-pf',
@@ -118,7 +124,7 @@ export const PROGRAMS: Program[] = [
     split: 'Push / Pull / Legs',
     daysPerCycle: 6,
     perWeek: 4,
-    description: 'Two versions of each day (Push 1 → Pull 1 → Legs 1 → Push 2 → Pull 2 → Legs 2), rotated in order however many days you get in. Six a week hits every muscle twice; four rolls the cycle over a week and a half. Strength work is kept to the minimum that still progresses: one hard top set on the big lift (RPE 8–9, never a grinder you can’t repeat), then lighter back-off sets of a variation. Everything after that is bodybuilding work with a twist: set-to-set grip and angle changes, lengthened partials, and 30 s loaded stretches between sets. Barbell lifts run on the Smith machine or dumbbells here. On a cut, the top sets will stall before the pump work does. Hold the load, chase reps, and treat a matched top set as a win.',
+    description: 'Two versions of each day (Push 1 → Pull 1 → Legs 1 → Push 2 → Pull 2 → Legs 2), rotated in order however many days you get in. Six a week hits every muscle twice; four rolls the cycle over a week and a half. Strength work is kept to the minimum that still progresses: one hard top set on the big lift (RPE 8–9, never a grinder you can’t repeat), then lighter back-off sets of a variation. Everything after that is bodybuilding work with a twist: set-to-set grip and angle changes, lengthened partials, and 30 s loaded stretches between sets. Apart from the deadlift, barbell lifts run on the Smith machine or dumbbells here. On a cut, the top sets will stall before the pump work does. Hold the load, chase reps, and treat a matched top set as a win.',
     days: [
       {
         name: 'Push 1 — Flat Press',
@@ -126,7 +132,7 @@ export const PROGRAMS: Program[] = [
           { name: 'Smith Machine Bench Press', rpe: '9', sets: 1, reps: '3–5', muscle: 'Chest', note: 'One top set after a full warm-up pyramid. Dig the upper back in, pin the shoulder blades down and back, butt and head on the bench. Touch the highest point of the chest; anywhere from 0–30° of elbow tuck is fine. The last rep should grind, with maybe one left in the tank.' },
           { name: 'Smith Machine Larsen Press', rpe: '8', sets: 2, reps: '10', muscle: 'Chest', note: '~75% of the top set. Legs straight out on the bench, so there is no leg drive and the pecs, front delts and triceps do all of it. Grip a touch closer than the top set. 1–2 s down, 1–2 s up, soft touch on the chest.' },
           { name: 'Standing Arnold Press', rpe: '8-9', sets: 3, reps: '8–10', muscle: 'Shoulders', perSide: true, note: 'Start palms in, flare the elbows out as you press to a full lockout, then reverse under control. Treat it like an overhead press: squeeze the glutes, drive through the heels, and add load over time. A belt and straps help if you have them.' },
-          { name: 'Cable Press-Around', rpe: '9', sets: 2, reps: '12–15', muscle: 'Chest', perSide: true, note: 'One arm. Half fly, half press: drive the handle around and past your midline. Almost no other pec exercise gets that end-range squeeze. After each side, hold a static pec stretch for 30 s at about a 7/10 before switching arms.' },
+          { name: 'Pec Flyes', rpe: '9', sets: 2, reps: '12–15', muscle: 'Chest', note: 'Pec deck. Seat so the handles line up with mid-chest, open to a full stretch, then hug the handles together and hold the squeeze for a second. The machine stops at your midline, so the cable fly on Push 2 takes over the cross-the-body squeeze. After each set, hold a static pec stretch for 30 s at about a 7/10.' },
           { name: 'Cross-Body Cable Y-Raise', rpe: '9', sets: 3, reps: '12–15', muscle: 'Shoulders', perSide: true, note: 'Handle starts across your body, like drawing a sword, which stretches the side delt further than a lateral raise can. Flick it up and out on a diagonal. It is not a front raise; the path goes out and back.' },
           { name: 'Squeeze-Only Triceps Pressdown', rpe: '9-10', sets: 3, reps: '8', muscle: 'Triceps', note: 'Bottom half only, elbows pinned: go from 90° to full lockout. That is where a pressdown is hardest. Superset straight into the stretch-only overhead extension below, no rest between.' },
           { name: 'Stretch-Only Overhead Triceps Extension', rpe: '9-10', sets: 3, reps: '8', muscle: 'Triceps', note: 'Cable, rope, facing away. Bottom half only: sink deep into the stretch, then press back just to 90°. The pressdown handles the squeeze and this handles the long-head stretch. Rest after the pair.' },
@@ -162,7 +168,7 @@ export const PROGRAMS: Program[] = [
           { name: 'Smith Machine Incline Press', rpe: '8-9', sets: 3, reps: '8 · 5 · 15', muscle: 'Chest', note: 'Undulating sets: 8 reps at moderate load to find the groove, then 5 heavier, then 15 light for the pump. Rest 3–4 min before the set of 5. Grip just outside shoulder width, touch high on the chest, and keep the bar stacked over the shoulder. Incline grew the upper pecs more than flat did, with no loss lower down.' },
           { name: 'Machine Shoulder Press', rpe: '9', sets: 3, reps: '10–12', muscle: 'Shoulders', note: 'Seat low enough that the elbows break parallel. Thumbless grip, constant tension: no lockout at the top, 1 s up and 1 s down. Leave 1 in the tank on sets 1–2 and take set 3 to failure.' },
           { name: 'Dumbbell Skull Crusher (floor reset)', rpe: '8-9', sets: 3, reps: '6–8', muscle: 'Triceps', perSide: true, note: 'The strength-focused triceps lift. Lie on the floor, lower under control to about halfway, then let the dumbbells settle to a dead stop on the floor behind your head and press from there. Go heavier than a normal skull crusher and log it like a main lift.' },
-          { name: 'Bent-Over Cable Fly', rpe: '9', sets: 3, reps: '10–12', muscle: 'Chest', note: 'Pulleys at shoulder height. Hinge forward at the hips and fly straight down in front of you. Leaning over the cables keeps them from pulling you backward, so your balance isn’t limiting the pecs. Hits the whole chest, mostly the mid pecs.' },
+          { name: 'Cable Fly', rpe: '9', sets: 3, reps: '10–12', muscle: 'Chest', note: 'Pulleys at shoulder height, staggered stance, slight forward lean. Open until you feel the pecs stretch, then bring the handles together and cross one past the other at the end, switching which hand goes on top each rep. That end-range squeeze is the part the pec deck on Push 1 can’t reach.' },
           { name: 'Dumbbell Lateral Raise', rpe: '9-10', sets: 3, reps: '20', muscle: 'Shoulders', perSide: true, note: 'No lateral machine here, so use dumbbells. Make the first 5 reps 5 s negatives to find the side delt, then do 15 constant-tension reps (1 s up, 1 s down, no pause at either end). Lead with the elbows.' },
           { name: 'Plate Front Raise', rpe: '9', sets: 2, reps: '15–20', muscle: 'Shoulders', note: 'Steer the wheel: rotate the plate inward as it rises. Internal rotation brings the side-delt fibers in, so this is less of a pure front-delt lift. If it bothers the shoulder, swap in a dumbbell Y-raise.' },
           { name: 'Diamond Push-Up', rpe: '10', sets: 1, reps: 'Max', muscle: 'Triceps', note: 'One all-out AMRAP to finish, since nothing comes after it. Hands form a diamond under the chest to load the triceps. Control the lowering instead of dropping, and keep the form strict all the way to failure.' },
@@ -176,14 +182,14 @@ export const PROGRAMS: Program[] = [
           { name: 'Kroc Row', rpe: '9-10', sets: 3, reps: '10–12', muscle: 'Back', perSide: true, note: 'A looser dumbbell row, torso more upright, with a little controlled body English. A back exercise is easy at the bottom and hardest at the top, so some momentum off the bottom lets you reach real failure. Control every negative.' },
           { name: 'Cable Shrug', rpe: '9', sets: 3, reps: '10–12', muscle: 'Traps', note: 'Stand between two low pulleys. The upper-trap fibers fan out horizontally, so shrug up and in toward the ears, not straight up.' },
           { name: 'Reverse Pec Deck', rpe: '9', sets: 3, reps: '10–12', muscle: 'Shoulders', note: 'Sweep out and back, not just back; pulling straight back hands the work to the mid traps. Palms facing on set 1, palms down on set 2, slightly internally rotated on set 3. Rear-delt feel varies a lot from person to person, so find your grip.' },
-          { name: 'Overhead Cable Curl', rpe: '9', sets: 3, reps: '10–12', muscle: 'Biceps', perSide: true, note: 'Kneel, with the arm up and out to the side at a high pulley. Arm-overhead positions seem to bias the long head (the peak). If you want more biceps volume, add a couple of sets with the arm down at your side or behind you.' },
+          { name: 'Arm Curl', rpe: '9', sets: 3, reps: '10–12', muscle: 'Biceps', note: 'Selectorized curl machine. Arms on the pad, so it works like a preacher curl: start from a full stretch at the bottom and keep tension there rather than resting at lockout. Squeeze at the top, 2 s down.' },
         ],
       },
       {
-        name: 'Legs 2 — Hip Thrust',
+        name: 'Legs 2 — Deadlift',
+        aliases: ['Legs 2 — Hip Thrust'],
         exercises: [
-          { name: 'Smith Machine Hip Thrust', rpe: '8-9', sets: 1, reps: '5–8', muscle: 'Glutes', note: 'Stands in for the deadlift top set; hip thrust is Jeff’s glute-dominant swap. Upper back on the bench, bar across the hips on a pad, chin tucked. Drive to full hip lockout and squeeze. Leave 1–2 in the tank and add load week to week.' },
-          { name: 'Dumbbell Stiff-Leg Deadlift', rpe: '7-8', sets: 2, reps: '8', muscle: 'Hamstrings', perSide: true, note: 'The back-off pulls. Hips high, knees nearly straight, and hinge to start the pull, not a squat. Dumbbells reach the floor where the Smith can’t. Start light and stay shy of failure until the pattern feels natural.' },
+          { name: 'Deadlift', rpe: '8-9', sets: 3, reps: '3–5 · 6 · 6', muscle: 'Hamstrings', note: 'Jeff’s original Legs 2 lift. Ramp up in warm-ups, then one top set of 3–5 at RPE 8–9, leaving 1–2 in the tank. Drop to ~85% for two back-off sets of 6 at RPE 7–8. Brace, pull the slack out of the bar, and push the floor away; reset each rep instead of bouncing. Squats, RDLs and lunges already cover the glutes, so the hip thrust is gone.' },
           { name: 'Leg Press', rpe: '9', sets: 4, reps: '10–12', muscle: 'Quads', note: 'The quad work after a hinge-heavy start. Medium stance, as deep as you can go before the lower back peels off the pad. Soft knees at the top and no pauses, so tension stays constant. Cap rest at 2 min to keep the session moving.' },
           { name: 'Lying Leg Curl', rpe: '9', sets: 3, reps: '8–10', muscle: 'Hamstrings', note: 'Stands in for the glute-ham raise. Skip the top quarter, where there’s no tension. Pads tight, hips down, control the return. If there’s no lying curl free, use the seated curl.' },
           { name: 'Leg Extension', rpe: '9', sets: 3, reps: '8–10', muscle: 'Quads', note: '3 s negative on every rep. Leg extensions are the only lift that fully contracts the rectus femoris, which crosses the hip too. The slow eccentric makes a lighter load feel heavy, which is easier on the knees.' },
@@ -252,7 +258,6 @@ export { epley1RM, weightForReps } from '@/engine/strength';
 const STARTER_WEIGHTS: Record<string, number> = {
   'smith machine bench press': 100,
   'smith machine larsen press': 75,
-  'cable press-around': 20,
   'cross-body cable y-raise': 10,
   'squeeze-only triceps pressdown': 40,
   'stretch-only overhead triceps extension': 30,
@@ -264,13 +269,9 @@ const STARTER_WEIGHTS: Record<string, number> = {
   'dumbbell walking lunge': 25,
   'smith machine incline press': 80,
   'dumbbell skull crusher (floor reset)': 20,
-  'bent-over cable fly': 20,
   'plate front raise': 25,
   'kroc row': 50,
   'cable shrug': 60,
-  'overhead cable curl': 20,
-  'smith machine hip thrust': 135,
-  'dumbbell stiff-leg deadlift': 40,
 };
 
 export function starterWeight(exerciseName: string): number | undefined {

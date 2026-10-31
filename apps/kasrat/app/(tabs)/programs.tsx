@@ -12,6 +12,7 @@ import { useStore } from '@/store/StoreContext';
 import {
   ACTIVE_PROGRAM_ID,
   PROGRAMS,
+  isDayNamed,
   isHeavyWeek,
   isWaved,
   repSequence,
@@ -41,7 +42,7 @@ export default function ProgramsScreen() {
   // lifts, pull the wrong heavy/light previous weights).
   function weekFor(prog: Program) {
     const last = history.find(rec =>
-      rec.programId ? rec.programId === prog.id : prog.days.some(d => d.name === rec.name)
+      rec.programId ? rec.programId === prog.id : prog.days.some(d => isDayNamed(d, rec.name))
     );
     return last?.week ?? 1;
   }

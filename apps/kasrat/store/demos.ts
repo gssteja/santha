@@ -118,6 +118,8 @@ const BY_NAME: Record<string, keyof typeof FRAMES> = {
   'cable shrug': 'cable-shrugs',
   'reverse pec deck': 'reverse-machine-flyes',
   'overhead cable curl': 'overhead-cable-curl',
+  'pec flyes': 'dumbbell-flyes',
+  'arm curl': 'machine-bicep-curl',
   'smith machine hip thrust': 'barbell-hip-thrust',
   'dumbbell stiff-leg deadlift': 'stiff-legged-dumbbell-deadlift',
   'leg press': 'leg-press',
