@@ -25,6 +25,7 @@ type State = {
 type Action =
   | { type: 'LOAD'; payload: Pick<State, 'activeWorkout' | 'history'> & { program?: ProgramProgress } }
   | { type: 'MERGE_SERVER'; records: WorkoutRecord[] }
+  | { type: 'REPLACE_RECORDS'; records: WorkoutRecord[] }
   | { type: 'SET_SYNCING'; value: boolean }
   | { type: 'SYNCED'; at: number }
   | { type: 'START_WORKOUT'; name: string; week?: number; programId?: string }
@@ -63,6 +64,11 @@ function reducer(state: State, action: Action): State {
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
       return { ...state, history: merged };
+    }
+
+    case 'REPLACE_RECORDS': {
+      const byId = new Map(action.records.map(r => [r.id, r]));
+      return { ...state, history: state.history.map(r => byId.get(r.id) ?? r) };
     }
 
     case 'SET_SYNCING':
@@ -499,6 +505,13 @@ export function useWorkoutStore() {
 
   const discardWorkout = useCallback(() => dispatch({ type: 'DISCARD_WORKOUT' }), []);
 
+  // Health Connect enrichment rewrites finished records in place; push just those.
+  const replaceRecords = useCallback((records: WorkoutRecord[]) => {
+    if (!records.length) return;
+    dispatch({ type: 'REPLACE_RECORDS', records });
+    syncToServer(records);
+  }, []);
+
   return {
     ...state,
     activeVolume,
@@ -518,6 +531,7 @@ export function useWorkoutStore() {
     toggleSet,
     finishWorkout,
     discardWorkout,
+    replaceRecords,
   };
 }
 

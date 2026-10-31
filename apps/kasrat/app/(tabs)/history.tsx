@@ -9,7 +9,23 @@ import { HeatStrip } from '@/components/ui/Heat';
 import { bestE1RM } from '@/engine/strength';
 import { recentPRs } from '@/engine/progression';
 import type { PRKind } from '@/engine/progression';
-import type { WorkoutRecord } from '@/types';
+import type { WorkoutHealth, WorkoutRecord } from '@/types';
+
+const SOURCES: Record<string, string> = {
+  'com.sec.android.app.shealth': 'Samsung Health',
+  'com.google.android.apps.fitness': 'Google Fit',
+};
+
+// Heart rate and calories Health Connect had for the session, and where the session came from.
+function watchLine(h: WorkoutHealth): string {
+  const parts = [
+    h.avgHr ? `♥ ${h.avgHr} avg` : null,
+    h.maxHr ? `${h.maxHr} max` : null,
+    h.activeKcal ? `${h.activeKcal} kcal` : null,
+    h.written ? 'shared to Health Connect' : h.source ? (SOURCES[h.source] ?? h.source) : null,
+  ];
+  return parts.filter(Boolean).join(' · ');
+}
 
 function fmtTime(secs: number) {
   const m = Math.floor(secs / 60);
@@ -164,6 +180,8 @@ function WorkoutCard({
           </View>
         </View>
 
+        {!!w.health && <Text style={styles.watchLine}>{watchLine(w.health)}</Text>}
+
         {/* Per-exercise breakdown: sets · session e1RM · trend heat-strip · PR mark */}
         {w.exerciseData && w.exerciseData.length > 0 && (
           <View style={styles.breakdown}>
@@ -252,6 +270,7 @@ const styles = StyleSheet.create({
   volStat: { justifyContent: 'center' },
   statVal: { color: C.text, fontSize: F.xl, fontFamily: FONT.bold, fontVariant: ['tabular-nums'] },
   statLabel: { color: C.text3, fontSize: F.xs, fontFamily: FONT.medium, marginTop: 2 },
+  watchLine: { color: C.text2, fontSize: F.xs, fontFamily: FONT.medium, textAlign: 'center', marginTop: -4, marginBottom: 12 },
   statDivider: { width: StyleSheet.hairlineWidth, height: 36, backgroundColor: C.border },
 
   breakdown: { gap: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: C.border, paddingTop: 12 },

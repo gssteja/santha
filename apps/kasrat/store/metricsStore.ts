@@ -15,6 +15,8 @@ export type BodyMetric = {
   chest?: number;
   thigh?: number;
   note?: string;
+  /** Imported from Health Connect (id is `hc-<day>`), so a re-sync replaces it instead of adding a copy. */
+  source?: 'health-connect';
 };
 
 // Daily readiness check-in. Each input 1–5; score buckets to -1 | 0 | 1.
@@ -24,6 +26,8 @@ export type Readiness = {
   soreness: number; // 1 wrecked – 5 fresh
   stress: number; // 1 high – 5 low
   score: number; // -1 beat · 0 normal · 1 fresh
+  /** Watch recovery (resting HR / HRV vs baseline) folded into the score, with why. */
+  recovery?: { flag: number; note: string };
 };
 
 export function readinessScore(sleep: number, soreness: number, stress: number): number {
@@ -42,6 +46,7 @@ type Action =
   | { type: 'LOAD'; payload: Pick<State, 'metrics' | 'readiness'> }
   | { type: 'ADD_METRIC'; metric: BodyMetric }
   | { type: 'DELETE_METRIC'; id: string }
+  | { type: 'UPSERT_METRICS'; metrics: BodyMetric[] }
   | { type: 'SET_READINESS'; readiness: Readiness };
 
 function reducer(state: State, action: Action): State {
@@ -55,6 +60,15 @@ function reducer(state: State, action: Action): State {
           (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
         ),
       };
+    case 'UPSERT_METRICS': {
+      const ids = new Set(action.metrics.map(m => m.id));
+      return {
+        ...state,
+        metrics: [...state.metrics.filter(m => !ids.has(m.id)), ...action.metrics].sort(
+          (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        ),
+      };
+    }
     case 'DELETE_METRIC':
       return { ...state, metrics: state.metrics.filter(m => m.id !== action.id) };
     case 'SET_READINESS': {
@@ -99,15 +113,24 @@ export function useMetricsStore() {
 
   const deleteMetric = useCallback((id: string) => dispatch({ type: 'DELETE_METRIC', id }), []);
 
-  const setReadiness = useCallback((sleep: number, soreness: number, stress: number) => {
-    dispatch({
-      type: 'SET_READINESS',
-      readiness: { date: todayKey(), sleep, soreness, stress, score: readinessScore(sleep, soreness, stress) },
-    });
+  const upsertMetrics = useCallback((metrics: BodyMetric[]) => {
+    if (metrics.length) dispatch({ type: 'UPSERT_METRICS', metrics });
   }, []);
+
+  const setReadiness = useCallback(
+    (sleep: number, soreness: number, stress: number, recovery?: { flag: number; note: string } | null) => {
+      const base = readinessScore(sleep, soreness, stress);
+      const score = Math.max(-1, Math.min(1, base + (recovery?.flag ?? 0)));
+      dispatch({
+        type: 'SET_READINESS',
+        readiness: { date: todayKey(), sleep, soreness, stress, score, ...(recovery ? { recovery } : {}) },
+      });
+    },
+    []
+  );
 
   const todayReadiness = state.readiness.find(r => r.date === todayKey()) ?? null;
   const latestWeight = state.metrics.find(m => m.weight !== undefined) ?? null;
 
-  return { ...state, todayReadiness, latestWeight, addMetric, deleteMetric, setReadiness };
+  return { ...state, todayReadiness, latestWeight, addMetric, deleteMetric, upsertMetrics, setReadiness };
 }

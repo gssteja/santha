@@ -14,6 +14,7 @@ import {
 } from '@expo-google-fonts/archivo';
 import { StoreProvider } from '@/store/StoreContext';
 import { MetricsProvider } from '@/store/MetricsContext';
+import { HealthProvider } from '@/store/HealthContext';
 import { C } from '@/constants/theme';
 
 export default function RootLayout() {
@@ -37,6 +38,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <StoreProvider>
           <MetricsProvider>
+            <HealthProvider>
             <View style={styles.root}>
               <StatusBar style="light" />
               <Stack
@@ -53,6 +55,7 @@ export default function RootLayout() {
                 />
               </Stack>
             </View>
+            </HealthProvider>
           </MetricsProvider>
         </StoreProvider>
       </SafeAreaProvider>

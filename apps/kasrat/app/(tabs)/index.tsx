@@ -13,6 +13,9 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useStore } from '@/store/StoreContext';
 import { useMetrics } from '@/store/MetricsContext';
+import { useHealth } from '@/store/HealthContext';
+import { sleepDial } from '@/store/health';
+import type { Recovery } from '@/store/health';
 import { makeProgramExerciseBlock } from '@/store/workoutStore';
 import { ACTIVE_PROGRAM_ID, PROGRAMS, getProgram, isDayNamed, isHeavyWeek, isWaved, resolveReps, repsToInput, repSequence } from '@/store/programs';
 import { suggestLoad, detectStall, deloadMessage, recentPRs } from '@/engine/progression';
@@ -88,6 +91,7 @@ export default function TodayScreen() {
   const insets = useSafeAreaInsets();
   const { activeWorkout, history, startWorkout, addExercise, getPhaseSets, getSeedSets, syncing, lastSyncedAt } = useStore();
   const { todayReadiness, setReadiness } = useMetrics();
+  const { lastNight, recovery } = useHealth();
   const [elapsed, setElapsed] = useState(0);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -270,7 +274,9 @@ export default function TodayScreen() {
       {/* Readiness pulse */}
       <ReadinessCard
         readiness={todayReadiness}
-        onSet={(sl, so, st) => setReadiness(sl, so, st)}
+        sleepMinutes={lastNight?.minutes ?? null}
+        recovery={recovery}
+        onSet={(sl, so, st) => setReadiness(sl, so, st, recovery)}
       />
 
       {/* Active workout banner */}
@@ -429,9 +435,15 @@ export default function TodayScreen() {
 // exists; otherwise a prompt that opens a three-dial 1–5 modal → setReadiness.
 function ReadinessCard({
   readiness,
+  sleepMinutes,
+  recovery,
   onSet,
 }: {
-  readiness: { sleep: number; soreness: number; stress: number; score: number } | null;
+  readiness: { sleep: number; soreness: number; stress: number; score: number; recovery?: { note: string; flag: number } } | null;
+  /** Last night's sleep from Health Connect; pre-sets the sleep dial. */
+  sleepMinutes: number | null;
+  /** Watch recovery vs baseline; nudges the score one step either way. */
+  recovery: Recovery | null;
   onSet: (sleep: number, soreness: number, stress: number) => void;
 }) {
   const [open, setOpen] = useState(false);
@@ -457,6 +469,10 @@ function ReadinessCard({
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.06] });
   const dotOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] });
 
+  useEffect(() => {
+    if (open && sleepMinutes != null) setVals(v => ({ ...v, sleep: sleepDial(sleepMinutes) }));
+  }, [open, sleepMinutes]);
+
   function submit() {
     haptics.done();
     onSet(vals.sleep, vals.soreness, vals.stress);
@@ -467,7 +483,12 @@ function ReadinessCard({
     <>
       {readiness && meta ? (
         <Surface flat style={styles.readyCard}>
-          <Text style={styles.readyKicker}>READINESS</Text>
+          <View style={styles.readyCol}>
+            <Text style={styles.readyKicker}>READINESS</Text>
+            {readiness.recovery && readiness.recovery.flag !== 0 && (
+              <Text style={styles.readyNote}>{readiness.recovery.note}</Text>
+            )}
+          </View>
           <Animated.View style={[styles.readyBadge, { borderColor: meta.color, transform: [{ scale }] }]}>
             <Animated.View style={[styles.readyDot, { backgroundColor: meta.color, opacity: dotOpacity }]} />
             <Text style={[styles.readyLabel, { color: meta.color }]}>{meta.label}</Text>
@@ -490,6 +511,14 @@ function ReadinessCard({
         <Pressable style={styles.overlay} onPress={() => setOpen(false)}>
           <Pressable style={styles.modalCard} onPress={() => {}}>
             <Text style={styles.modalKicker}>HOW READY?</Text>
+            {(sleepMinutes != null || (recovery && recovery.flag !== 0)) && (
+              <Text style={styles.modalHint}>
+                {[
+                  sleepMinutes != null ? `Watch: ${Math.floor(sleepMinutes / 60)}h ${Math.round(sleepMinutes % 60)}m sleep` : null,
+                  recovery && recovery.flag !== 0 ? recovery.note : null,
+                ].filter(Boolean).join(' · ')}
+              </Text>
+            )}
             {PICKERS.map(p => (
               <View key={p.key} style={styles.dialRow}>
                 <View style={styles.dialHead}>
@@ -556,6 +585,8 @@ const styles = StyleSheet.create({
     backgroundColor: C.surface2,
   },
   readyKicker: { color: C.text3, fontSize: F.xs, fontFamily: FONT.bold, letterSpacing: 1.5 },
+  readyCol: { flexShrink: 1, gap: 3 },
+  readyNote: { color: C.text2, fontSize: F.xs, fontFamily: FONT.medium },
   readyPrompt: { color: HEAT.warm, fontSize: F.sm, fontFamily: FONT.bold },
   readyBadge: {
     flexDirection: 'row',
@@ -697,6 +728,7 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     textAlign: 'center',
   },
+  modalHint: { color: C.text2, fontSize: F.xs, fontFamily: FONT.medium, textAlign: 'center', marginTop: -10, marginBottom: 16 },
   dialRow: { marginBottom: 18 },
   dialHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 8 },
   dialLabel: { color: C.text, fontSize: F.sm, fontFamily: FONT.bold },

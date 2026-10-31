@@ -6,7 +6,8 @@ buildscript {
     mavenCentral()
   }
   dependencies {
-    classpath('com.android.tools.build:gradle')
+    // Pinned above React Native 0.79's 8.8.2: Health Connect's connect-client 1.1.0 needs 8.9.1+.
+    classpath('com.android.tools.build:gradle:8.9.1')
     classpath('com.facebook.react:react-native-gradle-plugin')
     classpath('org.jetbrains.kotlin:kotlin-gradle-plugin')
   }

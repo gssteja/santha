@@ -56,6 +56,27 @@ export type WorkoutRecord = {
     sets: WorkoutSet[];
     perSide?: boolean;
   }[];
+  /** What Health Connect knows about this session — see store/health.ts. */
+  health?: WorkoutHealth;
+};
+
+/** Watch data for a logged session. Either another app (Samsung Health) recorded an
+ *  overlapping workout and its numbers are copied here, or none did and Kasrat wrote its own. */
+export type WorkoutHealth = {
+  /** Package of the app whose session matched (e.g. com.sec.android.app.shealth). Unset when Kasrat wrote it. */
+  source?: string;
+  title?: string;
+  start: string;
+  end: string;
+  minutes: number;
+  avgHr?: number;
+  maxHr?: number;
+  minHr?: number;
+  activeKcal?: number;
+  totalKcal?: number;
+  /** Kasrat wrote its own session to Health Connect (no other app had one). */
+  written?: boolean;
+  checkedAt: number;
 };
 
 export type Exercise = {

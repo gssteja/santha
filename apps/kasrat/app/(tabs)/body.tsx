@@ -18,6 +18,7 @@ import { ForgedNumber } from '@/components/ui/ForgedNumber';
 import { Surface } from '@/components/ui/Surface';
 import { HeatStrip } from '@/components/ui/Heat';
 import { haptics } from '@/components/ui/haptics';
+import { HealthCard } from '@/components/HealthCard';
 
 type Unit = 'kg' | 'lb';
 
@@ -174,6 +175,8 @@ export default function BodyScreen() {
             )}
           </Surface>
 
+          <HealthCard />
+
           {/* Log entry */}
           <Surface style={styles.logCard}>
             <Text style={styles.cardLabel}>NEW MARK</Text>
@@ -291,6 +294,7 @@ export default function BodyScreen() {
                     </View>
                     {!!summary && <Text style={styles.histMeasures}>{summary}</Text>}
                     {!!m.note && <Text style={styles.histNote}>{m.note}</Text>}
+                    {m.source === 'health-connect' && <Text style={styles.histNote}>from Health Connect</Text>}
                   </View>
                   <TouchableOpacity
                     style={styles.delBtn}
